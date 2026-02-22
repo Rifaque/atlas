@@ -36,7 +36,7 @@ jobs:
         if: matrix.os-name == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl wget
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl wget libfuse2
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
