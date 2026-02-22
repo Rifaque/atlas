@@ -1,0 +1,17 @@
+{
+    "name": "@atlas/retrieval",
+    "version": "0.1.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsup src/index.ts --format esm,cjs --dts",
+        "dev": "tsup src/index.ts --format esm,cjs --dts --watch"
+    },
+    "dependencies": {
+        "chromadb": "^1.8.1"
+    },
+    "devDependencies": {
+        "typescript": "^5.4.2",
+        "tsup": "^8.0.2"
+    }
+}

@@ -1,0 +1,43 @@
+{
+    "name": "atlas-backend",
+    "version": "0.1.0",
+    "main": "src/index.ts",
+    "bin": "dist/index.js",
+    "pkg": {
+        "targets": [
+            "node18-win-x64",
+            "node18-macos-arm64",
+            "node18-macos-x64",
+            "node18-linux-x64"
+        ],
+        "outputPath": "bin"
+    },
+    "dependencies": {
+        "@atlas/chunking": "workspace:*",
+        "@atlas/embeddings": "workspace:*",
+        "@atlas/rag": "workspace:*",
+        "@atlas/retrieval": "workspace:*",
+        "@fastify/cors": "^9.0.1",
+        "chokidar": "^3.6.0",
+        "fastify": "^4.26.2",
+        "html-entities": "^2.6.0",
+        "ignore": "^7.0.5",
+        "mammoth": "^1.8.0",
+        "pdf-parse": "^1.1.1",
+        "pino": "^8.19.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.25",
+        "@types/pdf-parse": "^1.1.5",
+        "pino-pretty": "^11.0.0",
+        "pkg": "^5.8.1",
+        "ts-node": "^10.9.2",
+        "tsup": "^8.0.2",
+        "typescript": "^5.4.2"
+    },
+    "scripts": {
+        "dev": "ts-node src/index.ts",
+        "build": "tsup src/index.ts --format cjs",
+        "build:sidecar": "pnpm build && pkg . --output ../desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe -t node18-win-x64"
+    }
+}

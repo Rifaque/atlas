@@ -1,0 +1,116 @@
+use tauri::Manager;
+use tauri_plugin_shell::ShellExt;
+use std::sync::{Arc, Mutex};
+
+type Child = tauri_plugin_shell::process::CommandChild;
+
+pub struct ManagedProcesses {
+    pub backend: Mutex<Option<Child>>,
+    pub chromadb: Mutex<Option<Child>>,
+}
+
+fn kill_services(processes: &Arc<ManagedProcesses>) {
+    if let Ok(mut g) = processes.backend.lock() {
+        if let Some(c) = g.take() { let _ = c.kill(); }
+    }
+    if let Ok(mut g) = processes.chromadb.lock() {
+        if let Some(c) = g.take() { let _ = c.kill(); }
+    }
+}
+
+#[tauri::command]
+async fn start_services(app: tauri::AppHandle) -> Result<String, String> {
+    let processes = app.state::<Arc<ManagedProcesses>>();
+
+    // ── Start ChromaDB ──────────────────────────────────────────────────────
+    {
+        let mut chroma = processes.chromadb.lock().unwrap();
+        if chroma.is_none() {
+            let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let chroma_path = data_dir.join("chroma");
+            std::fs::create_dir_all(&chroma_path).ok();
+            let path_str = chroma_path.to_string_lossy().into_owned();
+
+            match app.shell()
+                .command("chroma")
+                .args(["run", "--path", &path_str, "--port", "8000"])
+                .spawn() 
+            {
+                Ok((_rx, child)) => { *chroma = Some(child); }
+                Err(e) => {
+                    eprintln!("[atlas] chroma spawn failed: {e} (using existing instance)");
+                }
+            }
+        }
+    }
+
+    // Give ChromaDB a moment before the backend connects
+    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+
+    // ── Start Node backend sidecar ──────────────────────────────────────────
+    {
+        let mut backend = processes.backend.lock().unwrap();
+        if backend.is_none() {
+            match app.shell().sidecar("atlas-backend") {
+                Ok(cmd) => match cmd.spawn() {
+                    Ok((_rx, child)) => { *backend = Some(child); }
+                    Err(e) => { 
+                        eprintln!("[atlas] Sidecar spawn failed: {e} (might be already running)");
+                    }
+                },
+                Err(e) => { 
+                    eprintln!("[atlas] Sidecar setup failed: {e}");
+                }
+            }
+        }
+    }
+
+    Ok("Services started".to_string())
+}
+
+#[tauri::command]
+async fn stop_services(app: tauri::AppHandle) {
+    let processes = app.state::<Arc<ManagedProcesses>>();
+    kill_services(&processes);
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let processes: Arc<ManagedProcesses> = Arc::new(ManagedProcesses {
+        backend: Mutex::new(None),
+        chromadb: Mutex::new(None),
+    });
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_os::init())
+        .manage(Arc::clone(&processes))
+        .setup(move |app| {
+            if cfg!(debug_assertions) {
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log::LevelFilter::Info)
+                        .build(),
+                )?;
+            }
+
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = start_services(handle).await {
+                    eprintln!("[atlas] Service start error: {e}");
+                }
+            });
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![start_services, stop_services])
+        .on_window_event(move |_window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                kill_services(&processes);
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
