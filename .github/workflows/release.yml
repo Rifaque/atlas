@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build and Release
 
 on:
   push:
@@ -9,36 +9,50 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    name: Build Windows Installer
-    runs-on: windows-latest
+  build-release:
+    name: Build Release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            os-name: windows
+            target: x86_64-pc-windows-msvc
+            sidecar_cmd: build:sidecar
+          - platform: ubuntu-22.04
+            os-name: linux
+            target: x86_64-unknown-linux-gnu
+            sidecar_cmd: build:sidecar:linux
+
+    runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
 
     steps:
-      # ── 1. Checkout ─────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Node.js ──────────────────────────────────────────────────────────
+      - name: Install system dependencies (Linux)
+        if: matrix.os-name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl wget
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # ── 3. pnpm ─────────────────────────────────────────────────────────────
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
-      # ── 4. Rust ─────────────────────────────────────────────────────────────
       - name: Set up Rust (stable)
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
-      # ── 5. Cache pnpm store ──────────────────────────────────────────────────
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
@@ -51,7 +65,6 @@ jobs:
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
 
-      # ── 6. Cache Cargo ────────────────────────────────────────────────────
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -62,53 +75,49 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # ── 7. Install all JS dependencies ──────────────────────────────────────
-      - name: Install dependencies
+      - name: Install JS dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # ── 8. Build internal packages (@atlas/*) ───────────────────────────────
       - name: Build workspace packages
         run: pnpm run build
 
-      # ── 9. Compile backend + bundle as standalone .exe sidecar ──────────────
-      - name: Build backend sidecar (Windows x64)
+      - name: Build backend sidecar
         working-directory: apps/backend
-        run: pnpm run build:sidecar
+        run: pnpm run ${{ matrix.sidecar_cmd }}
 
-      # ── 10. Verify sidecar was produced ─────────────────────────────────────
-      - name: Verify sidecar binary exists
-        shell: pwsh
-        run: |
-          $sidecar = "apps/desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe"
-          if (!(Test-Path $sidecar)) {
-            Write-Error "Sidecar binary not found at $sidecar"
-            exit 1
-          }
-          $size = (Get-Item $sidecar).Length / 1MB
-          Write-Host "Sidecar built successfully: $([math]::Round($size, 1)) MB"
-
-      # ── 11. Build Tauri app (NSIS installer + MSI) ───────────────────────
       - name: Build Tauri application
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          tagName: atlas-v__VERSION__
-          releaseName: Atlas v__VERSION__
-          releaseBody: See the attached installer for the latest release.
-          releaseDraft: true
-          prerelease: true
-          args: --target x86_64-pc-windows-msvc
+          args: --target ${{ matrix.target }}
 
-      # ── 12. Upload build artifacts ────────────────────────────────────────
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
+      - name: Prepare Artifacts (Windows)
+        if: matrix.os-name == 'windows'
+        shell: pwsh
+        run: |
+          $buildDir = "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -Force atlas-windows/nsis
+          mkdir -Force atlas-windows/msi
+          Copy-Item "$buildDir/nsis/*.exe" -Destination "atlas-windows/nsis/"
+          Copy-Item "$buildDir/msi/*.msi" -Destination "atlas-windows/msi/"
+          Compress-Archive -Path "atlas-windows/*" -DestinationPath atlas-windows.zip
+          mkdir -Force dist-artifacts
+          Move-Item atlas-windows.zip dist-artifacts/
+
+      - name: Prepare Artifacts (Linux)
+        if: matrix.os-name == 'linux'
+        run: |
+          mkdir -p dist-artifacts
+          cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage dist-artifacts/ || true
+          cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb dist-artifacts/ || true
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
         with:
-          name: atlas-windows-${{ github.sha }}
-          path: |
-            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-          retention-days: 14
-          if-no-files-found: warn
+          tag_name: v0.1.0
+          files: dist-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

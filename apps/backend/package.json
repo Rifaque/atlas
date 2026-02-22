@@ -43,6 +43,7 @@
     "scripts": {
         "dev": "ts-node src/index.ts",
         "build": "tsup src/index.ts --format cjs",
-        "build:sidecar": "pnpm build && pkg package.json --output ../desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe -t node18-win-x64"
+        "build:sidecar": "pnpm build && pkg package.json --output ../desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe -t node18-win-x64",
+        "build:sidecar:linux": "pnpm build && pkg package.json --output ../desktop/src-tauri/bin/atlas-backend-x86_64-unknown-linux-gnu -t node18-linux-x64"
     }
 }
