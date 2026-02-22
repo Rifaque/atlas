@@ -30,7 +30,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          run_install: false
 
       # ── 4. Rust ─────────────────────────────────────────────────────────────
       - name: Set up Rust (stable)
@@ -38,14 +38,20 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      # ── 5. Cache ─────────────────────────────────────────────────────────────
+      # ── 5. Cache pnpm store ──────────────────────────────────────────────────
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
-          path: ~/.pnpm-store
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
 
+      # ── 6. Cache Cargo ────────────────────────────────────────────────────
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -56,21 +62,22 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # ── 6. Install all JS dependencies ──────────────────────────────────────
+      # ── 7. Install all JS dependencies ──────────────────────────────────────
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
-      # ── 7. Build internal packages (@atlas/*) ───────────────────────────────
+      # ── 8. Build internal packages (@atlas/*) ───────────────────────────────
       - name: Build workspace packages
         run: pnpm run build
 
-      # ── 8. Compile backend + bundle as standalone .exe sidecar ──────────────
+      # ── 9. Compile backend + bundle as standalone .exe sidecar ──────────────
       - name: Build backend sidecar (Windows x64)
         working-directory: apps/backend
         run: pnpm run build:sidecar
 
-      # ── 9. Verify sidecar was produced ──────────────────────────────────────
+      # ── 10. Verify sidecar was produced ─────────────────────────────────────
       - name: Verify sidecar binary exists
+        shell: pwsh
         run: |
           $sidecar = "apps/desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe"
           if (!(Test-Path $sidecar)) {
@@ -78,33 +85,22 @@ jobs:
             exit 1
           }
           $size = (Get-Item $sidecar).Length / 1MB
-          Write-Host "Sidecar built: $([math]::Round($size, 1)) MB"
+          Write-Host "Sidecar built successfully: $([math]::Round($size, 1)) MB"
 
-      # ── 10. Build Tauri app → NSIS installer + MSI ────────────────────────
+      # ── 11. Build Tauri app (NSIS installer + MSI) ───────────────────────
       - name: Build Tauri application
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # On tag pushes → create/update a GitHub Release with the artifacts
-          # On branch pushes → just build (no release)
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && 'atlas-v__VERSION__' || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && 'Atlas v__VERSION__' || '' }}
-          releaseBody: |
-            ## Atlas v__VERSION__ — Windows
-
-            ### Installation
-            - **Atlas_0.1.0_x64-setup.exe** — NSIS installer (recommended)
-            - **Atlas_0.1.0_x64_en-US.msi** — MSI installer
-
-            ### Requirements
-            - [Ollama](https://ollama.com/download) with `nomic-embed-text` and `llama3.2:latest` pulled
-            - [ChromaDB](https://docs.trychroma.com) running on `localhost:8000`
+          tagName: atlas-v__VERSION__
+          releaseName: Atlas v__VERSION__
+          releaseBody: See the attached installer for the latest release.
           releaseDraft: true
           prerelease: true
           args: --target x86_64-pc-windows-msvc
 
-      # ── 11. Upload build artifacts (always, even without a tag) ────────────
+      # ── 12. Upload build artifacts ────────────────────────────────────────
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         if: always()
