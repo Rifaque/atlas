@@ -2,10 +2,10 @@ name: Build and Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
     tags: ['v*']
   pull_request:
-    branches: [main]
+    branches: [main, development]
   workflow_dispatch:
 
 jobs:
@@ -115,10 +115,10 @@ jobs:
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref == 'refs/heads/main' && 'nightly' || 'development') }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref == 'refs/heads/main' && 'Nightly Build' || 'Development Build') }}
           prerelease: ${{ github.ref_type != 'tag' }}
           files: dist-artifacts/*
         env:
