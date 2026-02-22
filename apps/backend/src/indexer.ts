@@ -48,16 +48,15 @@ export async function startIndexing(folderPath: string, model: string): Promise<
     return id;
 }
 
-// ─── Parent text truncation ───────────────────────────────────────────────────
-// ChromaDB has a practical metadata size limit (~64 kB per item).
-// A parent chunk at 6000 chars is safe, but clip as a safeguard.
+// clip parent chunk size so it fits in lancedb/chromadb margins
+// 8k chars is pretty safe
 const MAX_PARENT_CHARS = 8000;
 
 async function runIndexingJob(id: string) {
     const job = jobs.get(id)!;
     const store = new AtlasVectorStore();
 
-    // Load manifest for incremental indexing
+    // grab the manifest so we don't re-index stuff we already did
     const manifest = loadManifest(job.folderPath);
     const seenFiles = new Set<string>();
 
@@ -79,12 +78,12 @@ async function runIndexingJob(id: string) {
         seenFiles.add(file.filePath);
 
         if (!needsIndexing(manifest, file.filePath)) {
-            // Already indexed and unmodified
+            // already indexed this one and it didn't change
             updateJob(id, { processedFiles: job.processedFiles + 1 });
             return;
         }
 
-        // Delete previous chunks for this file if we are re-indexing it
+        // drop old chunks if we're redoing it
         await store.deleteByFilePath(file.filePath);
 
         const pairs = chunkTextParentChild(file.content, file.filePath);
@@ -108,7 +107,7 @@ async function runIndexingJob(id: string) {
 
     await flushBuffer();
 
-    // Sweep phase: delete chunks for files that no longer exist
+    // cleanup: drop chunks for files that got deleted
     for (const filePath of Object.keys(manifest)) {
         if (!seenFiles.has(filePath)) {
             await store.deleteByFilePath(filePath);

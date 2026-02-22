@@ -1,4 +1,4 @@
-// ─── Types ────────────────────────────────────────────────────────────────────
+// types for chunks
 
 export interface ChunkMetadata {
     filePath: string;
@@ -16,17 +16,13 @@ export interface ChunkingOptions {
     overlapInChars: number;
 }
 
-// ── Default (original) chunking — kept for backward compat ──────────────────
+// legacy single-level chunker stuff we're keeping around just in case
 const DEFAULT_OPTIONS: ChunkingOptions = {
     sizeInChars: 3200,   // ≈ 800 tokens
     overlapInChars: 800, // ≈ 200 tokens overlap
 };
 
-/**
- * Original fixed-size chunker.
- * Produces chunks of ~800 tokens with 200-token overlap.
- * Used by the classic single-level index path.
- */
+// old chunker that just splits by 800 tokens. leaving it here just in case
 export function chunkText(
     text: string,
     filePath: string,
@@ -35,14 +31,10 @@ export function chunkText(
     return _splitIntoChunks(text, filePath, options);
 }
 
-// ─── Parent-Child Chunking ─────────────────────────────────────────────────────
+// new parent-child chunking approach
 
-/**
- * Sizes for parent-child chunking:
- *   CHILD  — small, embedded for precise retrieval (~400 tokens = ~1600 chars)
- *   PARENT — large, sent to the LLM for full context (~1500 tokens = ~6000 chars)
- *            with 300-token overlap between parents
- */
+// child = what we embed and search for
+// parent = the full context we actually send to the ai
 const CHILD_OPTIONS: ChunkingOptions = {
     sizeInChars: 1600,
     overlapInChars: 400,
@@ -54,21 +46,16 @@ const PARENT_OPTIONS: ChunkingOptions = {
 };
 
 export interface ParentChildChunk {
-    /** Small chunk — embedded and stored in the vector index */
+    // gets embedded in the db
     child: Chunk;
-    /** Full parent window — stored as metadata alongside the child embedding */
+    // full text window around the child
     parentText: string;
-    /** Line range of the parent window */
+    // line numbers for the parent window
     parentLineRange: [number, number];
 }
 
-/**
- * Two-level chunker:
- * 1. Splits text into large PARENT windows (≈1500 tokens).
- * 2. Splits each parent into small CHILD chunks (≈400 tokens).
- * 3. Each child carries its parent text, enabling retrieval-at-child +
- *    context-at-parent without any extra DB lookups.
- */
+// splits into large parent windows, then splits those into small children.
+// lets us search accurately without losing the surrounding context.
 export function chunkTextParentChild(
     text: string,
     filePath: string,
@@ -109,7 +96,7 @@ export function chunkTextParentChild(
     return result;
 }
 
-// ─── Internal splitter ─────────────────────────────────────────────────────────
+// the actual text splitting math
 
 function _splitIntoChunks(
     text: string,

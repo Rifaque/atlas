@@ -20,7 +20,7 @@ import { toast } from '../lib/toast';
 import { patchWorkspace, type Workspace } from '../lib/workspaces';
 import { InlineFileViewer } from './InlineFileViewer';
 
-// ─── Code block with copy button ──────────────────────────────────────────────
+// code block that you can click to copy
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
     const [copied, setCopied] = useState(false);
     const code = String(children ?? '').replace(/\n$/, '');
@@ -55,7 +55,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
     );
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+// main workspace layout
 interface WorkspaceLayoutProps {
     workspace: Workspace;
     onLeaveWorkspace: () => void;
@@ -180,7 +180,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         return () => window.removeEventListener('keydown', handler);
     }, [isGenerating]);
 
-    // ── Handlers ─────────────────────────────────────────────────────────────
+    // event handlers
     const handleSaveSettings = (s: AtlasSettings) => { setSettings(s); persistSettings(s); toast('Settings saved ✓', 'success'); };
 
     const handleNewChat = () => {
@@ -303,7 +303,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
     const handleStop = () => { abortRef.current?.abort(); toast('Generation stopped', 'info'); };
 
-    // ── Chat Submit ───────────────────────────────────────────────────────────
+    // handling chat submission
     const handleSubmitChat = async (e?: React.FormEvent, overrideQuery?: string) => {
         if (e) e.preventDefault();
         const q = (overrideQuery ?? inputQuery).trim();
@@ -472,7 +472,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         }
     };
 
-    // ─── Render ───────────────────────────────────────────────────────────────
+    // actual UI render
     return (
         <div className="flex h-screen w-screen overflow-hidden text-text-primary bg-bg-main">
             {showSettings && (

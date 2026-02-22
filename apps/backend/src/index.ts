@@ -41,7 +41,7 @@ fastify.setErrorHandler((error, _request, reply) => {
 
 fastify.get('/ping', async () => ({ status: 'ok' }));
 
-// --- Ollama Status & Models ---
+// ollama checks
 fastify.get('/api/status', async () => {
     const isRunning = await checkOllamaStatus();
     return { status: isRunning ? 'online' : 'offline' };
@@ -52,7 +52,7 @@ fastify.get('/api/models', async () => {
     return { models };
 });
 
-// --- Setup Check (used by the onboarding modal) ---
+// checking if everything is installed for the setup modal
 fastify.get('/api/setup-check', async () => {
     const REQUIRED_MODELS = ['nomic-embed-text', 'llama3.2:latest'];
     const ollamaOk = await checkOllamaStatus();
@@ -70,7 +70,7 @@ fastify.get('/api/setup-check', async () => {
     return { ollamaOk, chromaOk: true, models };
 });
 
-// --- Pull a model via Ollama ---
+// download a model from ollama
 fastify.post('/api/pull-model', async (request, reply) => {
     const { model } = request.body as { model: string };
     if (!model) return reply.status(400).send({ error: 'model is required' });
@@ -111,7 +111,7 @@ fastify.post('/api/pull-model', async (request, reply) => {
     reply.raw.end();
 });
 
-// --- OpenRouter Models ---
+// list openrouter models
 fastify.get('/api/openrouter-models', async (request, reply) => {
     const { apiKey } = request.query as { apiKey?: string };
     try {
@@ -122,7 +122,7 @@ fastify.get('/api/openrouter-models', async (request, reply) => {
     }
 });
 
-// --- Indexing ---
+// indexing endpoints
 interface IndexRequest { folderPath: string; model: string; }
 
 import { startWatching } from './watcher';
@@ -161,7 +161,7 @@ fastify.get('/api/index-progress/:jobId', (request, reply) => {
     request.raw.on('close', () => unsubscribe());
 });
 
-// --- Index Stats ---
+// stats stuff
 fastify.get('/api/index-stats', async () => {
     try {
         const store = new AtlasVectorStore();
@@ -172,7 +172,7 @@ fastify.get('/api/index-stats', async () => {
     }
 });
 
-// --- File Tree ---
+// fs operations to build the file tree
 export interface FileNode {
     name: string;
     path: string;
@@ -257,7 +257,7 @@ fastify.post('/api/sync', async (request, reply) => {
     }
 });
 
-// --- Chat & Retrieval ---
+// the main chat loop
 interface ChatRequest {
     query: string;
     model: string;
@@ -267,7 +267,7 @@ interface ChatRequest {
     manualFiles?: string[];
     systemPrompt?: string;
     folderPath?: string;
-    /** Rolling conversation history (last N turns, most-recent last) */
+    // last N turns of the conversation
     history?: ConversationTurn[];
 }
 
@@ -462,7 +462,7 @@ fastify.post('/api/chat', async (request, reply) => {
     }
 });
 
-// --- Hybrid Search (Semantic + Keyword) ---
+// global search (semantic + exact match fallback)
 fastify.post('/api/search', async (request, reply) => {
     const { query, model, folderPath } = request.body as { query: string; model: string; folderPath?: string };
     if (!query || !model) {

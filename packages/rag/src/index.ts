@@ -1,32 +1,27 @@
-// ─── Types ─────────────────────────────────────────────────────────────────────
+// types
 
 export type LLMProvider = 'ollama' | 'openrouter';
 
 export interface RAGOptions {
     model: string;
     provider?: LLMProvider;
-    /** Ollama host, default http://127.0.0.1:11434 */
+    // default is http://127.0.0.1:11434
     host?: string;
-    /** OpenRouter API key */
+    // your openrouter API key
     apiKey?: string;
     systemPrompt?: string;
 }
 
-/** A single turn of conversation history passed to the backend */
+// a single back-and-forth message
 export interface ConversationTurn {
     role: 'user' | 'assistant';
     content: string;
 }
 
-// ─── Prompt builder ────────────────────────────────────────────────────────────
+// building the actual prompt to send
 
-/**
- * Builds the RAG prompt with optional conversation history.
- *
- * History is prepended as a CONVERSATION HISTORY block before the question.
- * When history is long we rely on the caller having already summarised it —
- * this function just formats what it receives.
- */
+// formats the final system prompt + context + chat history
+// assumes history is already summarized if it's too long
 export function buildRagPrompt(
     question: string,
     autoChunks: string[],
@@ -67,16 +62,11 @@ FOLLOW_UP_SUGGESTIONS:
 `;
 }
 
-// ─── HyDE — Hypothetical Document Embedding ────────────────────────────────────
+// hyde implementation (fake document generation)
 
-/**
- * Given a user query, ask the LLM to produce a brief "hypothetical answer" —
- * a plausible code snippet or explanation that could answer the question.
- * Embedding THIS text instead of the raw question surfaces chunks that look
- * like good answers, not just chunks that mention the words in the question.
- *
- * Falls back to the original query on any error.
- */
+// asks the llm to guess the answer to the user's question.
+// we embed this fake answer instead of the raw question because it retrieves better chunks.
+// if it fails, we just fallback to the original query.
 export async function hydeQuery(
     query: string,
     options: RAGOptions,
@@ -101,11 +91,7 @@ export async function hydeQuery(
     return result.length > 20 ? result : query;
 }
 
-/**
- * Summarise old conversation history to avoid blowing the context window.
- * Called when the caller detects history is getting too long.
- * Returns a compact multi-sentence summary string.
- */
+// compress old chat history into a few sentences so we don't run out of context
 export async function summariseHistory(
     turns: ConversationTurn[],
     options: RAGOptions,
@@ -131,7 +117,7 @@ export async function summariseHistory(
     return summary.trim();
 }
 
-// ─── Ollama helpers ────────────────────────────────────────────────────────────
+// ollama util methods
 
 export async function checkOllamaStatus(host = 'http://127.0.0.1:11434'): Promise<boolean> {
     try {
@@ -153,7 +139,7 @@ export async function fetchOllamaModels(host = 'http://127.0.0.1:11434'): Promis
     }
 }
 
-// ─── OpenRouter helpers ────────────────────────────────────────────────────────
+// openrouter api stuff
 
 export interface OpenRouterModel {
     id: string;
@@ -198,7 +184,7 @@ export async function fetchOpenRouterModels(apiKey?: string): Promise<{
     }
 }
 
-// ─── Streaming LLM response ────────────────────────────────────────────────────
+// dealing with streams so the UI doesn't hang
 
 export async function* streamLLMResponse(
     prompt: string,
@@ -212,7 +198,7 @@ export async function* streamLLMResponse(
     }
 }
 
-// ── Ollama streaming ─────────────────────────────────────────────────────────
+// stream from local ollama
 
 async function* streamOllama(
     prompt: string,
@@ -253,7 +239,7 @@ async function* streamOllama(
     }
 }
 
-// ── OpenRouter streaming (OpenAI-compatible SSE) ─────────────────────────────
+// parsing sse from openrouter API
 
 async function* streamOpenRouter(
     prompt: string,

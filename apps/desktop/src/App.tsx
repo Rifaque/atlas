@@ -7,7 +7,7 @@ import { loadSettings } from './components/SettingsModal';
 import { SetupModal, useSetupModal } from './components/SetupModal';
 import { RefreshCw, ServerCrash } from 'lucide-react';
 
-// ─── Backend health banner ─────────────────────────────────────────────────────
+// banner showing if the backend is down
 type BackendStatus = 'checking' | 'online' | 'offline';
 
 function BackendOfflineBanner({ backendUrl, onRetry }: { backendUrl: string; onRetry: () => void }) {
@@ -34,7 +34,7 @@ function BackendOfflineBanner({ backendUrl, onRetry }: { backendUrl: string; onR
   );
 }
 
-// ─── Splash / startup loading screen ──────────────────────────────────────────
+// loading screen when you first open the app
 function StartupSplash({ status }: { status: BackendStatus }) {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-bg-main" role="main" aria-label="Atlas is starting">
@@ -53,7 +53,7 @@ function StartupSplash({ status }: { status: BackendStatus }) {
   );
 }
 
-// ─── Main App ──────────────────────────────────────────────────────────────────
+// main app component
 function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [checked, setChecked] = useState(false);

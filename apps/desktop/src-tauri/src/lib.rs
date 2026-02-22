@@ -18,7 +18,7 @@ fn kill_services(processes: &Arc<ManagedProcesses>) {
 async fn start_services(app: tauri::AppHandle) -> Result<String, String> {
     let processes = app.state::<Arc<ManagedProcesses>>();
 
-    // ── Start Node backend sidecar ──────────────────────────────────────────
+    // boot up the node backend sidecar process
     {
         let mut backend = processes.backend.lock().unwrap();
         if backend.is_none() {

@@ -39,7 +39,7 @@ export function persistSettings(s: AtlasSettings) {
     localStorage.setItem('atlas_settings', JSON.stringify(s));
 }
 
-// ─── Types from RAG package (mirrored to avoid circular import) ─────────────
+// rag types copied over so we don't get circular imports
 interface OpenRouterModel {
     id: string;
     name: string;
@@ -49,7 +49,7 @@ interface OpenRouterModel {
     isFree: boolean;
 }
 
-// ─── Known-good Ollama models ────────────────────────────────────────────────
+// models that we know work well with ollama
 const KNOWN_OLLAMA_MODELS = [
     'llama3', 'llama3:8b', 'llama3:70b',
     'llama3.1', 'llama3.1:8b', 'llama3.2', 'llama3.2:latest', 'llama3.2:3b',
@@ -60,7 +60,7 @@ const KNOWN_OLLAMA_MODELS = [
     'gemma2', 'gemma2:9b', 'gemma2:27b', 'phi3', 'phi3.5',
 ];
 
-// ─── Subcomponent: OpenRouter Model Browser ──────────────────────────────────
+// openrouter model picker
 interface ModelBrowserProps {
     backendUrl: string;
     apiKey: string;
@@ -223,7 +223,7 @@ function OpenRouterModelBrowser({ backendUrl, apiKey, selectedModel, onSelect }:
     );
 }
 
-// ─── Main SettingsModal ───────────────────────────────────────────────────────
+// the big settings modal
 
 interface SettingsModalProps {
     settings: AtlasSettings;

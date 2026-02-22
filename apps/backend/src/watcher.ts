@@ -1,10 +1,4 @@
-/**
- * apps/backend/src/watcher.ts
- *
- * Background File Watcher.
- * Uses chokidar to monitor the workspace folder for changes.
- * Debounces events and triggers incremental indexing automatically.
- */
+// watches the file system for changes and triggers re-indexing
 import { watch, FSWatcher } from 'chokidar';
 import { startIndexing, jobs } from './indexer';
 

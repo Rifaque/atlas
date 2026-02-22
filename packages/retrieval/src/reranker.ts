@@ -1,24 +1,16 @@
-/**
- * packages/retrieval/src/reranker.ts
- *
- * Three-stage re-ranking pipeline (pure TypeScript, zero extra dependencies):
- *
- *   Stage 1 — BM25 scoring
- *   Stage 2 — Reciprocal Rank Fusion (RRF) merging BM25 + cosine ranks
- *   Stage 3 — Cross-encoder approximation (lexical bigram overlap + position bonus)
- *
- * The cross-encoder stage is deliberately lightweight — it uses term-overlap
- * and positional heuristics rather than a neural model, which keeps it
- * dependency-free while still significantly outperforming pure cosine similarity
- * for final re-ranking.
- */
+// reranker.ts
+// doing a 3-stage ranking without bringing in a bunch of ML libs:
+// 1. bm25 matching
+// 2. rrf magic to merge bm25 and vector math
+// 3. custom cross-encoder logic just looking at bigrams and overlap
+// kind of hacky but works way better than pure cosine
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// types
 
 export interface RerankerDoc {
-    /** The text of the chunk that was embedded and retrieved */
+    // the tiny text chunk we matched on
     childText: string;
-    /** The wider parent window returned to the LLM (may equal childText) */
+    // the big surrounding text we send to the llm
     parentText: string;
     metadata: {
         filePath: string;
@@ -26,13 +18,13 @@ export interface RerankerDoc {
         lineRangeEnd?: number;
         [key: string]: any;
     };
-    /** Cosine similarity distance from LanceDB (lower = more similar) */
+    // lancedb score (lower is better)
     cosineDistance?: number;
 }
 
-// ─── Tokeniser ────────────────────────────────────────────────────────────────
+// basic tokenization stuff
 
-/** Simple whitespace + punctuation tokeniser, lowercase. */
+// basic tokenizer basically just splits on spaces
 function tokenise(text: string): string[] {
     return text
         .toLowerCase()
@@ -41,7 +33,7 @@ function tokenise(text: string): string[] {
         .filter(t => t.length > 1);
 }
 
-/** Produce character-level bigrams for fuzzy term matching. */
+// split into 2-char blocks for fuzzy matching
 function bigrams(tokens: string[]): Set<string> {
     const bg = new Set<string>();
     for (const t of tokens) {
@@ -50,15 +42,12 @@ function bigrams(tokens: string[]): Set<string> {
     return bg;
 }
 
-// ─── Stage 1: BM25 ───────────────────────────────────────────────────────────
+// step 1: bm25 stuff
 
 const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 
-/**
- * Score all docs against queryTokens using BM25.
- * Returns an array of scores aligned with `docs`.
- */
+// standard bm25 scoring formula
 export function bm25Scores(query: string, docs: RerankerDoc[]): number[] {
     const queryTokens = tokenise(query);
     if (queryTokens.length === 0) return docs.map(() => 0);
@@ -90,15 +79,11 @@ export function bm25Scores(query: string, docs: RerankerDoc[]): number[] {
     });
 }
 
-// ─── Stage 2: Reciprocal Rank Fusion (RRF) ───────────────────────────────────
+// step 2: rrf merging
 
 const RRF_K = 60; // Standard constant from the original RRF paper
 
-/**
- * Merge two score arrays (cosine-rank and bm25-rank) using RRF.
- * Cosine scores are already ranks (position in LanceDB result, 0 = best).
- * BM25 scores are raw BM25 values (higher = better).
- */
+// combine vector db distance + bm25 scores using rrf
 export function rrfScores(
     cosineRanks: number[],   // 0-based rank from LanceDB order
     bm25RawScores: number[], // raw BM25 values
@@ -117,17 +102,9 @@ export function rrfScores(
     });
 }
 
-// ─── Stage 3: Cross-Encoder Approximation ────────────────────────────────────
+// step 3: fake cross encoder
 
-/**
- * Lightweight cross-attention scoring between query and a single document.
- *
- * Components:
- *   a) Exact term overlap (weighted by IDF proxy)
- *   b) Character bigram overlap (fuzzy matching for morphological variants)
- *   c) Position bonus — query terms near the start of the chunk score higher
- *   d) Coverage — fraction of query terms that appear at all
- */
+// cheap and fast cross-encoder that just looks at word overlap, bigrams, and position bonuses
 export function crossEncoderScore(query: string, doc: string): number {
     const qToks = tokenise(query);
     const dToks = tokenise(doc);
@@ -161,16 +138,9 @@ export function crossEncoderScore(query: string, doc: string): number {
     return (exactScore * 0.5 + bigramScore * 0.3 + positionBonus) * coveragePenalty;
 }
 
-// ─── Combined Pipeline ────────────────────────────────────────────────────────
+// putting it all together
 
-/**
- * Full re-ranking pipeline:
- *   1. BM25 over all candidate docs
- *   2. RRF merge with cosine ranks
- *   3. Cross-encoder re-score
- *   4. Final sort: RRF * 0.6 + crossEncoder * 0.4
- *   5. Return top-k
- */
+// master function that runs bm25 -> rrf -> custom scoring -> final sort
 export function rerank(
     query: string,
     docs: RerankerDoc[],

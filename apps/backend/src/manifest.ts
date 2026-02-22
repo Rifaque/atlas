@@ -1,10 +1,6 @@
-/**
- * apps/backend/src/manifest.ts
- *
- * Incremental indexing manifest.
- * Stores a map of { filePath → lastModifiedMs } per workspace.
- * On re-index: only files whose mtime has changed since the last run are processed.
- */
+// manifest.ts
+// basically a poor man's sqlite DB
+// maps file paths to their last write time so we can skip unchanged files when indexing
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -16,7 +12,7 @@ export interface ManifestEntry {
 
 export type Manifest = Record<string, ManifestEntry>;
 
-// ─── Paths ────────────────────────────────────────────────────────────────────
+// path utils
 
 function atlasDir(): string {
     return path.join(os.homedir(), '.atlas');
@@ -37,7 +33,7 @@ export function workspaceId(folderPath: string): string {
         .slice(0, 80);
 }
 
-// ─── Load / Save ──────────────────────────────────────────────────────────────
+// io functions
 
 export function loadManifest(folderPath: string): Manifest {
     const id = workspaceId(folderPath);
@@ -56,9 +52,9 @@ export function saveManifest(folderPath: string, manifest: Manifest): void {
     fs.writeFileSync(p, JSON.stringify(manifest, null, 2));
 }
 
-// ─── Diff helpers ─────────────────────────────────────────────────────────────
+// figuring out what changed
 
-/** Returns true if this file needs to be (re-)indexed. */
+// checks if a file needs to be re-indexed
 export function needsIndexing(manifest: Manifest, filePath: string): boolean {
     const entry = manifest[filePath];
     if (!entry) return true; // never indexed
@@ -70,7 +66,7 @@ export function needsIndexing(manifest: Manifest, filePath: string): boolean {
     }
 }
 
-/** Mark a file as up-to-date in the manifest. */
+// marks a file as processed so we don't index it again
 export function markIndexed(manifest: Manifest, filePath: string, chunkCount: number): void {
     try {
         const stat = fs.statSync(filePath);
@@ -78,7 +74,7 @@ export function markIndexed(manifest: Manifest, filePath: string, chunkCount: nu
     } catch { /* ignore */ }
 }
 
-/** Remove a file that no longer exists from the manifest. */
+// drop files that got deleted from disk
 export function removeFromManifest(manifest: Manifest, filePath: string): void {
     delete manifest[filePath];
 }

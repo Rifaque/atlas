@@ -20,7 +20,7 @@ function isAllGood(s: SetupStatus) {
     return s.ollamaOk && s.models.every(m => m.installed);
 }
 
-// ─── Individual status row ────────────────────────────────────────────────────
+// a single status row
 function StatusRow({ ok, label, children }: { ok: boolean; label: string; children?: React.ReactNode }) {
     return (
         <div className="flex items-center justify-between gap-3 py-3 border-b border-white/5 last:border-0">
@@ -36,7 +36,7 @@ function StatusRow({ ok, label, children }: { ok: boolean; label: string; childr
     );
 }
 
-// ─── Model pull row ────────────────────────────────────────────────────────────
+// row for downloading a model
 function ModelRow({ model, onPulled }: { model: ModelStatus; onPulled: () => void }) {
     const [pull, setPull] = useState<PullState>({ status: 'idle', progress: '', percent: 0 });
 
@@ -139,7 +139,7 @@ function ModelRow({ model, onPulled }: { model: ModelStatus; onPulled: () => voi
     );
 }
 
-// ─── Main Setup Modal ─────────────────────────────────────────────────────────
+// main setup component
 export function SetupModal({ onDismiss }: { onDismiss: () => void }) {
     const [status, setStatus] = useState<SetupStatus | null>(null);
     const [checking, setChecking] = useState(true);
@@ -236,7 +236,7 @@ export function SetupModal({ onDismiss }: { onDismiss: () => void }) {
     );
 }
 
-// ─── Hook to decide if setup modal should show ────────────────────────────────
+// decide if we should show the setup modal
 const SETUP_KEY = 'atlas_setup_dismissed';
 export function useSetupModal(backendOnline: boolean) {
     const [show, setShow] = useState(false);

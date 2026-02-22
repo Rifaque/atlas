@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// types
 
 export interface StoredChunkMetadata {
     filePath: string;
@@ -29,7 +29,7 @@ interface LanceRow {
     parentLineRangeEnd: number;
 }
 
-// ─── Vector Store ─────────────────────────────────────────────────────────────
+// the actual vector db logic using lancedb
 
 
 const TABLE_NAME = 'atlas_workspace';
@@ -61,7 +61,7 @@ export class AtlasVectorStore {
         if (tableNames.includes(TABLE_NAME)) {
             this.table = await db.openTable(TABLE_NAME);
         } else {
-            // Create table with schema on first use based on incoming vector dimension
+            // make the table automatically if it doesn't exist yet
             const schema = new Schema([
                 new Field('id', new Utf8()),
                 new Field('vector', new FixedSizeList(vectorLength, new Field('item', new Float32()))),
@@ -80,7 +80,7 @@ export class AtlasVectorStore {
         return this.table;
     }
 
-    /** Upsert child-chunk embeddings with metadata. */
+    // saves chunks and their embeddings to the db
     async storeChunks(
         ids: string[],
         embeddings: number[][],
@@ -110,10 +110,7 @@ export class AtlasVectorStore {
         console.log(`[lancedb] Successfully added chunks.`);
     }
 
-    /**
-     * Semantic similarity search — returns results in the same shape the
-     * existing backend code expects from ChromaDB.
-     */
+    // searches the db, returning stuff in the legacy chromadb format so the backend doesnt break
     async similaritySearch(
         queryEmbedding: number[],
         nResults: number = 20,
@@ -123,7 +120,7 @@ export class AtlasVectorStore {
 
         let query = table.vectorSearch(queryEmbedding).limit(nResults);
 
-        // Apply filter if provided (e.g. { filePath: '/some/path' })
+        // apply filter if there's one
         if (where) {
             const filters = Object.entries(where)
                 .map(([k, v]) => `${k} = '${String(v).replace(/'/g, "''")}'`)
@@ -133,7 +130,7 @@ export class AtlasVectorStore {
 
         const results = await query.toArray();
 
-        // Return in a shape compatible with the existing backend code
+        // format for the legacy API
         return {
             ids: [results.map(r => r.id as string)],
             distances: [results.map(r => (r._distance as number) ?? 0)],
@@ -150,7 +147,7 @@ export class AtlasVectorStore {
         };
     }
 
-    /** Delete all chunks belonging to a specific file (used during incremental re-index). */
+    // deletes a file's chunks during re-indexing
     async deleteByFilePath(filePath: string): Promise<void> {
         try {
             const table = await this.getTable();
@@ -158,7 +155,7 @@ export class AtlasVectorStore {
         } catch { /* ignore if table doesn't exist yet */ }
     }
 
-    /** Total number of stored chunks. */
+    // just a quick count of total blocks
     async count(): Promise<number> {
         try {
             const table = await this.getTable();
@@ -166,7 +163,7 @@ export class AtlasVectorStore {
         } catch { return 0; }
     }
 
-    /** Drop and recreate the table (equivalent to deleteCollection). */
+    // drops the table basically
     async reset(): Promise<void> {
         try {
             const db = await this.connect();
@@ -176,6 +173,6 @@ export class AtlasVectorStore {
     }
 }
 
-// Re-export the reranker so consumers only need to import from @atlas/retrieval
+// re-export reranker so the rest of the app just imports from here
 export { rerank, bm25Scores, crossEncoderScore } from './reranker';
 export type { RerankerDoc } from './reranker';
