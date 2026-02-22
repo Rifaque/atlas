@@ -6,14 +6,10 @@ type Child = tauri_plugin_shell::process::CommandChild;
 
 pub struct ManagedProcesses {
     pub backend: Mutex<Option<Child>>,
-    pub chromadb: Mutex<Option<Child>>,
 }
 
 fn kill_services(processes: &Arc<ManagedProcesses>) {
     if let Ok(mut g) = processes.backend.lock() {
-        if let Some(c) = g.take() { let _ = c.kill(); }
-    }
-    if let Ok(mut g) = processes.chromadb.lock() {
         if let Some(c) = g.take() { let _ = c.kill(); }
     }
 }
@@ -21,31 +17,6 @@ fn kill_services(processes: &Arc<ManagedProcesses>) {
 #[tauri::command]
 async fn start_services(app: tauri::AppHandle) -> Result<String, String> {
     let processes = app.state::<Arc<ManagedProcesses>>();
-
-    // ── Start ChromaDB ──────────────────────────────────────────────────────
-    {
-        let mut chroma = processes.chromadb.lock().unwrap();
-        if chroma.is_none() {
-            let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-            let chroma_path = data_dir.join("chroma");
-            std::fs::create_dir_all(&chroma_path).ok();
-            let path_str = chroma_path.to_string_lossy().into_owned();
-
-            match app.shell()
-                .command("chroma")
-                .args(["run", "--path", &path_str, "--port", "8000"])
-                .spawn() 
-            {
-                Ok((_rx, child)) => { *chroma = Some(child); }
-                Err(e) => {
-                    eprintln!("[atlas] chroma spawn failed: {e} (using existing instance)");
-                }
-            }
-        }
-    }
-
-    // Give ChromaDB a moment before the backend connects
-    tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
 
     // ── Start Node backend sidecar ──────────────────────────────────────────
     {
@@ -78,7 +49,6 @@ async fn stop_services(app: tauri::AppHandle) {
 pub fn run() {
     let processes: Arc<ManagedProcesses> = Arc::new(ManagedProcesses {
         backend: Mutex::new(None),
-        chromadb: Mutex::new(None),
     });
 
     tauri::Builder::default()

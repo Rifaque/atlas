@@ -2,7 +2,7 @@
 
 > **Version:** 1.0  
 > **Date:** February 2026  
-> **Stack:** Tauri 2 + React 18 + Fastify + ChromaDB + Ollama / OpenRouter
+> **Stack:** Tauri 2 + React 18 + Fastify + LanceDB + Ollama / OpenRouter
 
 ---
 
@@ -32,7 +32,7 @@ The core technology is **Retrieval-Augmented Generation (RAG)** — a technique 
 │  └──────┬───────────────────────────┬─────────────────┘  │
 │         │                           │                    │
 │  ┌──────▼──────┐           ┌────────▼───────┐            │
-│  │  ChromaDB   │           │  Ollama / OR   │            │
+│  │  LanceDB    │           │  Ollama / OR   │            │
 │  │ (vector DB) │           │ (LLM & Embed)  │            │
 │  └─────────────┘           └────────────────┘            │
 └──────────────────────────────────────────────────────────┘
@@ -75,7 +75,7 @@ The resulting embedding vector, along with the child text and a metadata object,
 - `filePath` — absolute path on disk
 - `chunkIndex` — position of this chunk in the file
 - `lineRangeStart` / `lineRangeEnd` — line numbers in the source file
-- `parentText` — the full parent window text (up to 8000 chars, to stay within ChromaDB's metadata size limit)
+- `parentText` — the full parent window text (up to 8000 chars)
 - `parentLineRangeStart` / `parentLineRangeEnd`
 
 ---
@@ -101,7 +101,7 @@ BM25 (Best Match 25) is a classic Information Retrieval scoring function that op
 BM25 captures *exact keyword matches* that semantic search can miss — e.g., a specific error code, a function name, or a unique identifier.
 
 **Stage 2 — Reciprocal Rank Fusion (RRF)**
-RRF is a rank aggregation technique that fuses the cosine similarity rank list (from ChromaDB) and the BM25 rank list into a single combined score. For each document, the RRF score is:
+RRF is a rank aggregation technique that fuses the cosine similarity rank list (from LanceDB) and the BM25 rank list into a single combined score. For each document, the RRF score is:
 
 ```
 RRF(d) = 1/(k + cosine_rank(d)) + 1/(k + bm25_rank(d))
@@ -161,7 +161,7 @@ After streaming completes, the backend scans the full accumulated response for t
 | App settings (model, provider, API key, host) | Browser `localStorage` (`atlas_settings`) | JSON |
 | Chat sessions & message history | Browser `localStorage` (`atlas_chats`) | JSON, up to 50 sessions |
 | File index manifest (per workspace) | `~/.atlas/manifests/<id>.json` | JSON |
-| Vector embeddings | ChromaDB (default port 8000) | Binary (HNSW graph) |
+| Vector embeddings | LanceDB (embedded node module) | Apache Arrow / Lance format |
 
 ---
 
@@ -218,7 +218,7 @@ After streaming completes, the backend scans the full accumulated response for t
 | **Context Panel** | Shows all currently pinned files with an option to unpin; dynamically updates which files are injected into prompts. |
 | **Sync / Re-index Button** | Triggers an incremental re-index of the workspace (file watcher detects all changes since last run). |
 | **Ollama Status Indicator** | Real-time polling shows whether the local Ollama server is online or offline. |
-| **Index Chunk Counter** | Displays the total number of embedded chunks currently stored in ChromaDB for the workspace. |
+| **Index Chunk Counter** | Displays the total number of embedded chunks currently stored in LanceDB for the workspace. |
 
 ### Settings
 | Feature | Description |
@@ -245,7 +245,7 @@ packages/
 ├── chunking/     — Parent-child text chunking logic
 ├── embeddings/   — Ollama /api/embed wrapper with batching & fallback
 ├── rag/          — Prompt builder, HyDE, history summariser, Ollama & OpenRouter streaming
-└── retrieval/    — ChromaDB AtlasVectorStore + BM25/RRF/Cross-encoder re-ranker
+└── retrieval/    — LanceDB AtlasVectorStore + BM25/RRF/Cross-encoder re-ranker
 
 apps/
 ├── backend/      — Fastify API server (indexing, chat, search, sync, file-tree)

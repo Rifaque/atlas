@@ -36,8 +36,8 @@ export async function parseFile(filePath: string): Promise<string> {
         // Suppress noisy TrueType font warnings from pdf-parse internals
         const origWarn = console.warn;
         console.warn = (...args: any[]) => {
-            const msg = String(args[0] ?? '');
-            if (msg.startsWith('Warning: TT:') || msg.startsWith('Warning: ')) return;
+            const msg = args.map(String).join(' ');
+            if (msg.includes('Warning: TT:') || msg.includes('Warning: ')) return;
             origWarn.apply(console, args);
         };
 
@@ -46,9 +46,8 @@ export async function parseFile(filePath: string): Promise<string> {
             return data.text;
         } catch (err: any) {
             // Corrupted / malformed PDF — log a concise warning and skip
-            console.warn = origWarn;
             const reason = err?.message || String(err);
-            console.warn(`[crawler] Skipping corrupted PDF (${reason}): ${path.basename(filePath)}`);
+            origWarn(`[crawler] Skipping corrupted PDF (${reason.split('\n')[0]}): ${path.basename(filePath)}`);
             return '';
         } finally {
             console.warn = origWarn;

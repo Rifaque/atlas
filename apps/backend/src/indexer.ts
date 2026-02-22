@@ -68,7 +68,7 @@ async function runIndexingJob(id: string) {
     async function flushBuffer() {
         if (buffer.length === 0) return;
         const texts = buffer.map(b => b.childText);
-        const embeddings = await generateEmbeddings(texts, { model: 'nomic-embed-text' });
+        const embeddings = await generateEmbeddings(texts, { model: job.model });
         const ids = buffer.map(() => randomUUID());
         await store.storeChunks(ids, embeddings, buffer.map(b => b.meta), texts);
         updateJob(id, { totalChunks: job.totalChunks + buffer.length });

@@ -26,7 +26,7 @@ export interface RerankerDoc {
         lineRangeEnd?: number;
         [key: string]: any;
     };
-    /** Cosine similarity distance from ChromaDB (lower = more similar) */
+    /** Cosine similarity distance from LanceDB (lower = more similar) */
     cosineDistance?: number;
 }
 
@@ -96,11 +96,11 @@ const RRF_K = 60; // Standard constant from the original RRF paper
 
 /**
  * Merge two score arrays (cosine-rank and bm25-rank) using RRF.
- * Cosine scores are already ranks (position in ChromaDB result, 0 = best).
+ * Cosine scores are already ranks (position in LanceDB result, 0 = best).
  * BM25 scores are raw BM25 values (higher = better).
  */
 export function rrfScores(
-    cosineRanks: number[],   // 0-based rank from ChromaDB order
+    cosineRanks: number[],   // 0-based rank from LanceDB order
     bm25RawScores: number[], // raw BM25 values
 ): number[] {
     const n = cosineRanks.length;
@@ -189,7 +189,7 @@ export function rerank(
     // Stage 1: BM25
     const bm25 = bm25Scores(query, docs);
 
-    // Stage 2: RRF — cosine rank = original position in ChromaDB results
+    // Stage 2: RRF — cosine rank = original position in LanceDB results
     const cosineRanks = docs.map((_, i) => i);
     const rrf = rrfScores(cosineRanks, bm25);
 

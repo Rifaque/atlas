@@ -18,7 +18,6 @@ Install all of these before cloning the repo:
 | **pnpm** | 10+ | `npm install -g pnpm` or https://pnpm.io/installation |
 | **Rust + Cargo** | stable | https://rustup.rs |
 | **Ollama** | latest | https://ollama.com/download |
-| **ChromaDB** | latest | `pip install chromadb` then `chroma run` |
 
 > **Windows:** You also need the [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (required by Tauri/Rust).  
 > **Linux:** Run `sudo apt-get install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
@@ -57,17 +56,7 @@ ollama pull llama3.2:latest
 
 You can use any Ollama-compatible chat model (e.g., `mistral`, `deepseek-coder`, `gemma2`). Only `nomic-embed-text` is mandatory for embeddings.
 
-### 2. Start ChromaDB
-
-ChromaDB must be running before you launch Atlas:
-
-```bash
-chroma run
-```
-
-It will listen on `http://localhost:8000` by default. Keep this terminal open.
-
-### 3. Clone and install dependencies
+### 2. Clone and install dependencies
 
 ```bash
 git clone https://github.com/your-org/atlas.git
@@ -75,7 +64,7 @@ cd atlas
 pnpm install
 ```
 
-### 4. Build the internal packages
+### 3. Build the internal packages
 
 ```bash
 pnpm run build
@@ -83,7 +72,7 @@ pnpm run build
 
 This builds all the internal packages (`@atlas/chunking`, `@atlas/embeddings`, `@atlas/rag`, `@atlas/retrieval`) that the backend depends on.
 
-### 5. Run in development mode
+### 4. Run in development mode
 
 You have two options:
 
@@ -171,7 +160,7 @@ atlas/
 │   ├── chunking/         # Parent-child text chunking
 │   ├── embeddings/       # Ollama /api/embed wrapper
 │   ├── rag/              # Prompt builder, HyDE, history summariser, LLM streaming
-│   └── retrieval/        # ChromaDB vector store + BM25/RRF/cross-encoder re-ranker
+│   └── retrieval/        # LanceDB vector store + BM25/RRF/cross-encoder re-ranker
 ├── ARCHITECTURE.md       # Full technical deep-dive
 ├── install.ps1           # Windows one-command installer
 └── install.sh            # macOS/Linux one-command installer
@@ -210,10 +199,6 @@ All settings are accessible from the ⚙️ Settings modal in the app:
   `Remove-Item "$env:USERPROFILE\.atlas\manifests\*.json"`  
   Then click **Re-index** in the app.
 
-**ChromaDB errors**  
-→ Make sure ChromaDB is running: `chroma run`  
-→ ChromaDB must be on port 8000 (default)
-
 **"Invalid host defined option"**  
 → Your Ollama Host setting is blank or malformed. Go to Settings and set it to `http://127.0.0.1:11434`
 
@@ -226,7 +211,7 @@ All settings are accessible from the ⚙️ Settings modal in the app:
 | Desktop Shell | Tauri 2 (Rust) |
 | Frontend | React 18, Vite, TypeScript |
 | Backend | Fastify (Node.js), TypeScript |
-| Vector Database | ChromaDB |
+| Vector Database | LanceDB (embedded) |
 | Embeddings | Ollama `nomic-embed-text` |
 | Local LLM | Ollama (any model) |
 | Cloud LLM | OpenRouter (optional) |

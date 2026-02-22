@@ -4,6 +4,7 @@ import { WorkspaceLayout } from './components/WorkspaceLayout';
 import { ToastProvider } from './lib/toast';
 import { getActiveWorkspace, type Workspace } from './lib/workspaces';
 import { loadSettings } from './components/SettingsModal';
+import { SetupModal, useSetupModal } from './components/SetupModal';
 import { RefreshCw, ServerCrash } from 'lucide-react';
 
 // ─── Backend health banner ─────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ function App() {
   const [checked, setChecked] = useState(false);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking');
   const [backendUrl, setBackendUrl] = useState('http://127.0.0.1:47291');
+  const { show: showSetup, dismiss: dismissSetup } = useSetupModal(backendStatus === 'online');
 
   const checkBackend = useCallback(async (url?: string) => {
     const target = url ?? backendUrl;
@@ -119,6 +121,9 @@ function App() {
 
   return (
     <ToastProvider>
+      {/* Setup modal — shown when Ollama/ChromaDB/models are missing */}
+      {showSetup && <SetupModal onDismiss={dismissSetup} />}
+
       {/* Offline banner — shown on top of everything when backend is unreachable */}
       {backendStatus === 'offline' && (
         <BackendOfflineBanner

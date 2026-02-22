@@ -1,5 +1,17 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
+process.on('uncaughtException', (err) => {
+    try { fs.writeFileSync(path.join(os.homedir(), '.atlas', 'backend-crash.log'), String(err.stack || err)); } catch { }
+    process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+    try { fs.writeFileSync(path.join(os.homedir(), '.atlas', 'backend-crash.log'), String(reason)); } catch { }
+    process.exit(1);
+});
 import { startIndexing, subscribeToJob, jobs } from './indexer';
 import {
     buildRagPrompt,
@@ -14,8 +26,7 @@ import {
 } from '@atlas/rag';
 import { AtlasVectorStore, rerank, type RerankerDoc } from '@atlas/retrieval';
 import { parseFile, ALLOWED_EXTENSIONS, DEFAULT_IGNORES } from './crawler';
-import fs from 'fs';
-import path from 'path';
+
 
 const fastify = Fastify({
     logger: false,
@@ -39,6 +50,65 @@ fastify.get('/api/status', async () => {
 fastify.get('/api/models', async () => {
     const models = await fetchOllamaModels();
     return { models };
+});
+
+// --- Setup Check (used by the onboarding modal) ---
+fastify.get('/api/setup-check', async () => {
+    const REQUIRED_MODELS = ['nomic-embed-text', 'llama3.2:latest'];
+    const ollamaOk = await checkOllamaStatus();
+    let installedModels: string[] = [];
+    if (ollamaOk) {
+        installedModels = await fetchOllamaModels();
+    }
+
+    const models = REQUIRED_MODELS.map(name => ({
+        name,
+        installed: installedModels.some(m => m === name || m.startsWith(name + ':')),
+    }));
+
+    // LanceDB is embedded — no external server needed
+    return { ollamaOk, chromaOk: true, models };
+});
+
+// --- Pull a model via Ollama ---
+fastify.post('/api/pull-model', async (request, reply) => {
+    const { model } = request.body as { model: string };
+    if (!model) return reply.status(400).send({ error: 'model is required' });
+
+    reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+    });
+
+    try {
+        const res = await fetch('http://127.0.0.1:11434/api/pull', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: model, stream: true }),
+        });
+        if (!res.ok || !res.body) throw new Error(`Ollama pull failed: ${res.statusText}`);
+
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const text = dec.decode(value);
+            for (const line of text.split('\n').filter(Boolean)) {
+                try {
+                    const json = JSON.parse(line);
+                    reply.raw.write(`data: ${JSON.stringify(json)}\n\n`);
+                    if (json.status === 'success') break;
+                } catch { /* skip malformed */ }
+            }
+        }
+        reply.raw.write('event: done\ndata: {}\n\n');
+    } catch (err: any) {
+        reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+    }
+    reply.raw.end();
 });
 
 // --- OpenRouter Models ---
@@ -95,8 +165,7 @@ fastify.get('/api/index-progress/:jobId', (request, reply) => {
 fastify.get('/api/index-stats', async () => {
     try {
         const store = new AtlasVectorStore();
-        const collection = await store.getCollection();
-        const count = await collection.count();
+        const count = await store.count();
         return { count };
     } catch (err: any) {
         return { count: 0 };
@@ -489,6 +558,7 @@ const start = async () => {
         console.log(`Backend is running on http://127.0.0.1:47291`);
     } catch (err) {
         console.error('Failed to start server:', err);
+        try { fs.writeFileSync(path.join(os.homedir(), '.atlas', 'backend-crash.log'), String((err as any)?.stack || err)); } catch { }
         process.exit(1);
     }
 };

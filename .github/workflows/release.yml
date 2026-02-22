@@ -93,6 +93,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: apps/desktop
           tagName: atlas-v__VERSION__
           releaseName: Atlas v__VERSION__
           releaseBody: See the attached installer for the latest release.
