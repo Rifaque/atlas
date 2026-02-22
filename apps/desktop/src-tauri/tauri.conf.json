@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "atlas-desktop",
-  "version": "0.1.1",
-  "identifier": "com.atlas.app",
+  "version": "0.1.2",
+  "identifier": "com.atlas.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:47292",
@@ -25,7 +25,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "msi",
+      "appimage",
+      "deb"
+    ],
     "externalBin": [
       "bin/atlas-backend"
     ],

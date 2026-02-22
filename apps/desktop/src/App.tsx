@@ -7,7 +7,6 @@ import { loadSettings } from './components/SettingsModal';
 import { SetupModal, useSetupModal } from './components/SetupModal';
 import { RefreshCw, ServerCrash } from 'lucide-react';
 
-// banner showing if the backend is down
 type BackendStatus = 'checking' | 'online' | 'offline';
 
 function BackendOfflineBanner({ backendUrl, onRetry }: { backendUrl: string; onRetry: () => void }) {
