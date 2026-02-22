@@ -1,80 +1,117 @@
-name: Release
+name: Build Windows EXE
+
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  release:
+  build-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
 
-    runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      # ── 1. Checkout ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: setup node
+      # ── 2. Node.js ──────────────────────────────────────────────────────────
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: install Rust stable
+      # ── 3. pnpm ─────────────────────────────────────────────────────────────
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # ── 4. Rust ─────────────────────────────────────────────────────────────
+      - name: Set up Rust (stable)
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: x86_64-pc-windows-msvc
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+      # ── 5. Cache ─────────────────────────────────────────────────────────────
+      - name: Cache pnpm store
+        uses: actions/cache@v4
         with:
-          version: 8
+          path: ~/.pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
-      - name: install frontend deps
-        run: pnpm install
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
 
-      - name: build backends / utilities
+      # ── 6. Install all JS dependencies ──────────────────────────────────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── 7. Build internal packages (@atlas/*) ───────────────────────────────
+      - name: Build workspace packages
         run: pnpm run build
 
-      - name: Build Sidecars (Windows)
-        if: matrix.platform == 'windows-latest'
-        run: |
-          cd apps/backend
-          pnpm run build:sidecar
+      # ── 8. Compile backend + bundle as standalone .exe sidecar ──────────────
+      - name: Build backend sidecar (Windows x64)
+        working-directory: apps/backend
+        run: pnpm run build:sidecar
 
-      - name: Build Sidecars (Mac/Linux)
-        if: matrix.platform != 'windows-latest'
+      # ── 9. Verify sidecar was produced ──────────────────────────────────────
+      - name: Verify sidecar binary exists
         run: |
-          cd apps/backend
-          # Adjust pkg target depending on matrix (this is just illustrative, requires more precise matching)
-          npx pkg . -t node18-macos-arm64,node18-macos-x64,node18-linux-x64 -o ../desktop/src-tauri/bin/atlas-backend
+          $sidecar = "apps/desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe"
+          if (!(Test-Path $sidecar)) {
+            Write-Error "Sidecar binary not found at $sidecar"
+            exit 1
+          }
+          $size = (Get-Item $sidecar).Length / 1MB
+          Write-Host "Sidecar built: $([math]::Round($size, 1)) MB"
 
-      - uses: tauri-apps/tauri-action@v0
+      # ── 10. Build Tauri app → NSIS installer + MSI ────────────────────────
+      - name: Build Tauri application
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: atlas-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version
-          releaseName: 'Atlas v__VERSION__'
-          releaseBody: 'See the attached artifacts for the latest version.'
+          # On tag pushes → create/update a GitHub Release with the artifacts
+          # On branch pushes → just build (no release)
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && 'atlas-v__VERSION__' || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && 'Atlas v__VERSION__' || '' }}
+          releaseBody: |
+            ## Atlas v__VERSION__ — Windows
+
+            ### Installation
+            - **Atlas_0.1.0_x64-setup.exe** — NSIS installer (recommended)
+            - **Atlas_0.1.0_x64_en-US.msi** — MSI installer
+
+            ### Requirements
+            - [Ollama](https://ollama.com/download) with `nomic-embed-text` and `llama3.2:latest` pulled
+            - [ChromaDB](https://docs.trychroma.com) running on `localhost:8000`
           releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+          prerelease: true
+          args: --target x86_64-pc-windows-msvc
+
+      # ── 11. Upload build artifacts (always, even without a tag) ────────────
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atlas-windows-${{ github.sha }}
+          path: |
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          retention-days: 14
+          if-no-files-found: warn
