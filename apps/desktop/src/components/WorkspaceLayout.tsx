@@ -6,10 +6,11 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
     Search, MessageSquare, Send, PanelLeftClose, PanelLeft, Bot,
     FileText, Loader2, PlusCircle, Plus, X, Pin, Trash2, Pencil,
-    Check, Copy, Settings, StopCircle, Download, GitBranch, RefreshCcw, ArrowDown
+    Check, Copy, Settings, StopCircle, Download, GitBranch, RefreshCcw, ArrowDown,
+    Maximize2, Minimize2, Sun, Moon
 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, type SearchResult, type FileNode } from '../lib/api';
+import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, startChat, checkOllamaStatus, type SearchResult, type FileNode } from '../lib/api';
 import {
     loadChats, saveChat, createNewChat, deleteChat, renameChat,
     type ChatSession, type CitationRef
@@ -19,6 +20,8 @@ import { FileTree } from './FileTree';
 import { toast } from '../lib/toast';
 import { patchWorkspace, type Workspace } from '../lib/workspaces';
 import { InlineFileViewer } from './InlineFileViewer';
+import { CommandPalette, type CommandPaletteAction } from './CommandPalette';
+import { toggleTheme, getCurrentTheme } from '../lib/theme';
 
 // code block that you can click to copy
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -34,8 +37,8 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
         });
     };
     return (
-        <div className="relative group/code my-3 overflow-hidden rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0d1117]">
-            <div className="flex items-center justify-between px-3 py-1 bg-[rgba(255,255,255,0.03)] text-text-secondary text-[10px] font-mono border-b border-[rgba(255,255,255,0.05)]">
+        <div className="relative group/code my-3 overflow-hidden rounded-lg border border-[var(--glass-border)] bg-[var(--code-bg)]">
+            <div className="flex items-center justify-between px-3 py-1 bg-[var(--border-subtle)] text-text-secondary text-[10px] font-mono border-b border-[var(--glass-border)]">
                 <span>{lang}</span>
                 <button onClick={copy} className="p-1 hover:text-white transition-colors" title="Copy">
                     {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
@@ -66,17 +69,31 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     const [settings, setSettings] = useState<AtlasSettings>(loadSettings);
     const [showSettings, setShowSettings] = useState(false);
     const [indexedChunks, setIndexedChunks] = useState<number | undefined>();
-    const backendUrl = settings.backendUrl;
+    // backendUrl no longer needed — all calls go through Tauri IPC
     const model = settings.model || workspace.model;
     const provider = settings.provider ?? 'ollama';
     const apiKey = settings.openRouterApiKey ?? '';
 
     // Layout & Tools
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [zenMode, setZenMode] = useState(() => {
+        const saved = localStorage.getItem('atlas-zen-mode');
+        return saved !== null ? saved === 'true' : true; // default ON
+    });
     const [leftTab, setLeftTab] = useState<'search' | 'files' | 'active'>('search');
     const [previewFile, setPreviewFile] = useState<{ filePath: string; lineStart?: number } | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [overrideModel, setOverrideModel] = useState<string>(''); // For multi-model routing
+    const [showCommandPalette, setShowCommandPalette] = useState(false);
+    const [currentTheme, setCurrentTheme] = useState(getCurrentTheme);
+
+    const toggleZenMode = useCallback(() => {
+        setZenMode(prev => {
+            const next = !prev;
+            localStorage.setItem('atlas-zen-mode', String(next));
+            return next;
+        });
+    }, []);
 
     // Available models for routing
     const [availableModels, setAvailableModels] = useState<{ local: string[]; orFree: string[]; orPaid: string[] }>({ local: [], orFree: [], orPaid: [] });
@@ -94,7 +111,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     const [ollamaOnline, setOllamaOnline] = useState(false);
     useEffect(() => {
         const check = async () => {
-            try { const r = await fetch(settings.ollamaHost); setOllamaOnline(r.ok); } catch { setOllamaOnline(false); }
+            const status = await checkOllamaStatus();
+            setOllamaOnline(status === 'online');
         };
         check();
         const id = setInterval(check, 10000);
@@ -170,9 +188,10 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'k') { e.preventDefault(); handleNewChat(); }
+                if (e.key === 'k') { e.preventDefault(); setShowCommandPalette(true); }
+                if (e.key === 'j') { e.preventDefault(); toggleZenMode(); }
                 if (e.key === ',') { e.preventDefault(); setShowSettings(true); }
-                if (e.key === 'f') { e.preventDefault(); setLeftTab('search'); }
+                if (e.key === 'f') { e.preventDefault(); if (zenMode) toggleZenMode(); setLeftTab('search'); }
                 if (e.key === '/') { e.preventDefault(); document.getElementById('chat-input')?.focus(); }
             }
         };
@@ -285,20 +304,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
     const handleSyncWorkspace = async () => {
         setIsSyncing(true);
-        try {
-            const res = await fetch(`${backendUrl}/api/sync`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folderPath: workspace.folderPath })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to sync');
-            toast(`Sync successful: ${data.stdout.trim().split('\n')[0]}`, 'success');
-        } catch (err: any) {
-            toast(err.message, 'error');
-        } finally {
-            setIsSyncing(false);
-        }
+        toast('Workspace sync is handled automatically by the Rust core', 'info');
+        setIsSyncing(false);
     };
 
     const handleStop = () => { abortRef.current?.abort(); toast('Generation stopped', 'info'); };
@@ -321,8 +328,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
         setActiveSession(p => p ? { ...p, messages: [...p.messages, { role: 'assistant', content: '', citations: [] }] } : null);
 
-        const ctrl = new AbortController();
-        abortRef.current = ctrl;
+        let unlistenFn: (() => void) | null = null;
 
         try {
             // Build rolling conversation history — exclude the empty assistant message we just appended
@@ -331,20 +337,18 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                 .slice(0, -1)  // exclude the placeholder assistant message just added
                 .slice(-MAX_HISTORY_TURNS)
                 .map(m => {
-                    let content = m.content;
+                    let histContent = m.content;
                     if (m.role === 'assistant') {
-                        const match = content.match(/(?:\n|^)\s*(?:FOLLOW_UP_SUGGESTIONS|Follow-up suggestions|Follow up suggestions|Follow-up question)s?\s*:?\s*(?:\n|$)/i);
+                        const match = histContent.match(/(?:\n|^)\s*(?:FOLLOW_UP_SUGGESTIONS|Follow-up suggestions|Follow up suggestions|Follow-up question)s?\s*:?\s*(?:\n|$)/i);
                         if (match && match.index !== undefined) {
-                            content = content.slice(0, match.index).trimEnd();
+                            histContent = histContent.slice(0, match.index).trimEnd();
                         }
                     }
-                    return { role: m.role as 'user' | 'assistant', content };
+                    return { role: m.role as 'user' | 'assistant', content: histContent };
                 });
 
-            const res = await fetch(`${backendUrl}/api/chat`, {
-                method: 'POST', signal: ctrl.signal,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const { unlisten } = await startChat(
+                {
                     query: q,
                     model: activeModel,
                     provider,
@@ -354,104 +358,78 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     systemPrompt: settings.systemPrompt,
                     folderPath: workspace.folderPath,
                     history,
-                }),
-            });
+                },
+                (event) => {
+                    if (event.type === 'chunk' && event.data?.chunk !== undefined) {
+                        content += event.data.chunk;
 
-            if (!res.body) throw new Error('No response body');
+                        const match = content.match(/(?:\n|^)\s*(?:FOLLOW_UP_SUGGESTIONS|Follow-up suggestions|Follow up suggestions|Follow-up question)s?\s*:?\s*(?:\n|$)/i);
+                        const displayContent = match && match.index !== undefined
+                            ? content.slice(0, match.index).trimEnd()
+                            : content;
 
-            const reader = res.body.getReader();
-            const dec = new TextDecoder();
-            let buf = '';
-            let evt = 'message';
+                        setActiveSession(p => {
+                            if (!p) return null;
+                            const msgs = [...p.messages];
+                            msgs[msgs.length - 1] = {
+                                role: 'assistant',
+                                content: displayContent,
+                                citations,
+                                citationRefs,
+                            };
+                            return { ...p, messages: msgs };
+                        });
 
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                buf += dec.decode(value, { stream: true });
-                const lines = buf.split('\n');
-                buf = lines.pop() || '';
+                    } else if (event.type === 'citations') {
+                        citationRefs = (event.data as any[]).filter((m: any) => m?.filePath);
+                        citations = [...new Set(citationRefs.map((m: any) => m.filePath))];
 
-                for (const line of lines) {
-                    if (line.startsWith('event: ')) { evt = line.slice(7).trim(); continue; }
-                    if (line === '') { evt = 'message'; continue; } // SSE blank line resets event type
-                    if (!line.startsWith('data: ')) continue;
-                    const raw = line.slice(6).trim();
-                    if (!raw) continue;
-                    try {
-                        const data = JSON.parse(raw);
+                    } else if (event.type === 'suggestions') {
+                        const suggestions: string[] = event.data?.suggestions || [];
+                        setActiveSession(p => {
+                            if (!p) return null;
+                            const msgs = [...p.messages];
+                            msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], followUpSuggestions: suggestions };
+                            return { ...p, messages: msgs };
+                        });
 
-                        if (evt === 'citations') {
-                            citationRefs = (data as any[]).filter(m => m?.filePath);
-                            citations = [...new Set(citationRefs.map(m => m.filePath))];
+                    } else if (event.type === 'error') {
+                        content += `\n\n**Error:** ${event.data?.error}`;
+                        toast(event.data?.error, 'error');
+                        setActiveSession(p => {
+                            if (!p) return null;
+                            const msgs = [...p.messages];
+                            msgs[msgs.length - 1] = { role: 'assistant', content, citations, citationRefs };
+                            return { ...p, messages: msgs };
+                        });
 
-                        } else if (evt === 'suggestions') {
-                            const suggestions: string[] = data.suggestions || [];
-                            setActiveSession(p => {
-                                if (!p) return null;
-                                const msgs = [...p.messages];
-                                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], followUpSuggestions: suggestions };
-                                return { ...p, messages: msgs };
-                            });
+                    } else if (event.type === 'done') {
+                        // Chat complete — save and clean up
+                        setActiveSession(p => {
+                            if (!p) return null;
+                            const nextP = { ...p };
+                            saveChat(nextP).then(() => {
+                                setSessions(c => c.map(s => s.id === nextP.id ? nextP : s).sort((a, b) => b.updatedAt - a.updatedAt));
+                            }).catch(console.error);
+                            return nextP;
+                        });
+                        setIsGenerating(false);
+                        if (unlistenFn) unlistenFn();
+                    }
+                },
+            );
 
-                        } else if (evt === 'error') {
-                            content += `\n\n**Error:** ${data.error}`;
-                            toast(data.error, 'error');
-                            setActiveSession(p => {
-                                if (!p) return null;
-                                const msgs = [...p.messages];
-                                msgs[msgs.length - 1] = { role: 'assistant', content, citations, citationRefs };
-                                return { ...p, messages: msgs };
-                            });
-
-                        } else if (data.chunk !== undefined) {
-                            // Always accumulate full response (needed for suggestions check)
-                            content += data.chunk;
-
-                            // Strip the follow-up section from what we display
-                            const match = content.match(/(?:\n|^)\s*(?:FOLLOW_UP_SUGGESTIONS|Follow-up suggestions|Follow up suggestions|Follow-up question)s?\s*:?\s*(?:\n|$)/i);
-                            const displayContent = match && match.index !== undefined
-                                ? content.slice(0, match.index).trimEnd()
-                                : content;
-
-                            // Update state immediately on every chunk — true streaming
-                            setActiveSession(p => {
-                                if (!p) return null;
-                                const msgs = [...p.messages];
-                                msgs[msgs.length - 1] = {
-                                    role: 'assistant',
-                                    content: displayContent,
-                                    citations,
-                                    citationRefs,
-                                };
-                                return { ...p, messages: msgs };
-                            });
-                        }
-                    } catch { /* ignore malformed SSE lines */ }
-                }
-            }
-
-            setActiveSession(p => {
-                if (!p) return null;
-                const nextP = { ...p };
-                saveChat(nextP).then(() => {
-                    setSessions(c => c.map(s => s.id === nextP.id ? nextP : s).sort((a, b) => b.updatedAt - a.updatedAt));
-                }).catch(console.error);
-                return nextP;
-            });
+            unlistenFn = unlisten;
 
         } catch (err: any) {
-            if (err?.name !== 'AbortError') {
-                setActiveSession(p => {
-                    if (!p) return null;
-                    const msgs = [...p.messages];
-                    msgs[msgs.length - 1].content = '**Connection to backend failed.** Make sure the API is running.';
-                    return { ...p, messages: msgs };
-                });
-                toast('Backend connection failed', 'error');
-            }
-        } finally {
+            setActiveSession(p => {
+                if (!p) return null;
+                const msgs = [...p.messages];
+                msgs[msgs.length - 1].content = '**Connection to backend failed.** Make sure the API is running.';
+                return { ...p, messages: msgs };
+            });
+            toast('Backend connection failed', 'error');
             setIsGenerating(false);
-            abortRef.current = null;
         }
     };
 
@@ -488,14 +466,38 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                 />
             )}
 
-            {/* Sidebar */}
-            <aside className={`transition-all duration-300 border-r border-glass-border bg-[rgba(20,25,35,0.2)] flex flex-col shrink-0 ${sidebarOpen ? 'w-60' : 'w-0 border-r-0 opacity-0 overflow-hidden'}`}>
+            {/* Command Palette */}
+            <CommandPalette
+                isOpen={showCommandPalette}
+                onClose={() => setShowCommandPalette(false)}
+                sessions={sessions}
+                fileTree={fileTree}
+                onSelectChat={(s) => { handleSelectChat(s); }}
+                onOpenFile={(fp) => handleOpenFile(fp)}
+                actions={[
+                    { id: 'new-chat', label: 'New Chat', icon: <PlusCircle size={14} className="text-accent" />, category: 'action', onSelect: handleNewChat },
+                    { id: 'settings', label: 'Open Settings', icon: <Settings size={14} />, category: 'action', onSelect: () => setShowSettings(true) },
+                    { id: 'zen-toggle', label: zenMode ? 'Exit Zen Mode' : 'Enter Zen Mode', icon: <Maximize2 size={14} />, category: 'action', onSelect: toggleZenMode },
+                    { id: 'export', label: 'Export Chat as Markdown', icon: <Download size={14} />, category: 'action', onSelect: handleExportChat },
+                    { id: 'sync', label: 'Sync Workspace', icon: <RefreshCcw size={14} />, category: 'action', onSelect: handleSyncWorkspace },
+                ] as CommandPaletteAction[]}
+            />
+
+            {/* Sidebar — hidden in Zen Mode */}
+            <aside className={`transition-all duration-300 border-r border-glass-border bg-bg-surface flex flex-col shrink-0 ${zenMode ? 'w-0 border-r-0 opacity-0 overflow-hidden' : sidebarOpen ? 'w-60' : 'w-0 border-r-0 opacity-0 overflow-hidden'}`}>
                 <div className="p-3 border-b border-glass-border flex items-center justify-between whitespace-nowrap">
                     <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Chats</span>
                     <div className="flex items-center gap-1">
                         <button onClick={handleNewChat} title="New Chat (Ctrl+K)" className="p-1 text-text-secondary hover:text-white transition-colors"><PlusCircle size={14} /></button>
-                        <button onClick={handleExportChat} title="Export Chat" className="p-1 text-text-secondary hover:text-white transition-colors"><Download size={14} /></button>
-                        <button onClick={() => setShowSettings(true)} title="Settings (Ctrl+,)" className="p-1 text-text-secondary hover:text-white transition-colors"><Settings size={14} /></button>
+                        <button onClick={handleExportChat} title="Export Chat" className="p-1 text-text-secondary hover:text-text-primary transition-colors"><Download size={14} /></button>
+                        <button
+                            onClick={() => { const next = toggleTheme(); setCurrentTheme(next === 'dark' ? 'dark' : 'light'); }}
+                            title="Toggle Theme"
+                            className="p-1 text-text-secondary hover:text-text-primary transition-colors"
+                        >
+                            {currentTheme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                        </button>
+                        <button onClick={() => setShowSettings(true)} title="Settings (Ctrl+,)" className="p-1 text-text-secondary hover:text-text-primary transition-colors"><Settings size={14} /></button>
                         <button onClick={() => setSidebarOpen(false)} title="Collapse" className="p-1 text-text-secondary hover:text-white transition-colors"><PanelLeftClose size={14} /></button>
                     </div>
                 </div>
@@ -503,7 +505,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                 <div className="flex-1 p-2 overflow-y-auto space-y-0.5">
                     {sessions.map(session => (
                         <div key={session.id} onClick={() => handleSelectChat(session)}
-                            className={`p-2 rounded-lg cursor-pointer flex items-center gap-2 group transition-colors ${activeSession?.id === session.id ? 'bg-[rgba(255,255,255,0.1)] text-white' : 'hover:bg-[rgba(255,255,255,0.05)] text-text-secondary'}`}>
+                            className={`p-2 rounded-lg cursor-pointer flex items-center gap-2 group transition-colors ${activeSession?.id === session.id ? 'bg-accent-muted text-text-primary' : 'hover:bg-bg-surface-hover text-text-secondary'}`}>
                             <MessageSquare size={12} className={`shrink-0 ${activeSession?.id === session.id ? 'text-accent' : 'opacity-40'}`} />
                             {renamingId === session.id ? (
                                 <input autoFocus value={renameValue}
@@ -551,135 +553,137 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
             {/* Resizable Panels */}
             <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-                {/* Search / File Tree Panel */}
-                <Panel defaultSize={28} minSize={18} maxSize={45}>
-                    <section className="h-full border-r border-glass-border bg-[rgba(20,25,35,0.12)] flex flex-col">
-                        {/* Tab header */}
-                        <div className="flex border-b border-[rgba(255,255,255,0.04)] text-xs font-medium shrink-0 relative">
-                            {!sidebarOpen && (
-                                <button onClick={() => setSidebarOpen(true)} className="absolute left-2 top-3 z-10 text-text-secondary hover:text-white transition-colors">
-                                    <PanelLeft size={14} />
-                                </button>
-                            )}
-                            {(['search', 'files', 'active'] as const).map(tab => (
-                                <button key={tab} onClick={() => { setLeftTab(tab); if (tab === 'files' && !treeLoaded) handleLoadFileTree(); }}
-                                    className={`flex-1 py-2.5 capitalize transition-colors ${leftTab === tab ? 'text-accent border-b-2 border-accent' : 'text-text-secondary hover:text-text-primary'} ${tab === 'search' && !sidebarOpen ? 'pl-7' : ''}`}>
-                                    {tab === 'active' ? 'Context' : tab}
-                                </button>
-                            ))}
-                        </div>
+                {/* Search / File Tree Panel — hidden in Zen Mode */}
+                {!zenMode && (
+                    <Panel defaultSize={28} minSize={18} maxSize={45}>
+                        <section className="h-full border-r border-glass-border bg-[rgba(20,25,35,0.12)] flex flex-col">
+                            {/* Tab header */}
+                            <div className="flex border-b border-[rgba(255,255,255,0.04)] text-xs font-medium shrink-0 relative">
+                                {!sidebarOpen && (
+                                    <button onClick={() => setSidebarOpen(true)} className="absolute left-2 top-3 z-10 text-text-secondary hover:text-white transition-colors">
+                                        <PanelLeft size={14} />
+                                    </button>
+                                )}
+                                {(['search', 'files', 'active'] as const).map(tab => (
+                                    <button key={tab} onClick={() => { setLeftTab(tab); if (tab === 'files' && !treeLoaded) handleLoadFileTree(); }}
+                                        className={`flex-1 py-2.5 capitalize transition-colors ${leftTab === tab ? 'text-accent border-b-2 border-accent' : 'text-text-secondary hover:text-text-primary'} ${tab === 'search' && !sidebarOpen ? 'pl-7' : ''}`}>
+                                        {tab === 'active' ? 'Context' : tab}
+                                    </button>
+                                ))}
+                            </div>
 
-                        {/* Search Tab */}
-                        {leftTab === 'search' && (
-                            <>
-                                <div className="p-3 border-b border-[rgba(255,255,255,0.04)] shrink-0">
-                                    <form onSubmit={handleSearch} className="relative">
-                                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                                            onKeyDown={e => { if (e.key === 'Escape') setSearchQuery(''); }}
-                                            placeholder="Semantic + keyword search…"
-                                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.1)] rounded-lg pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-accent transition-colors placeholder:text-text-secondary/50" />
-                                        <Search size={12} className="absolute left-2.5 top-2.5 text-text-secondary" />
-                                    </form>
-                                </div>
-                                <div className="flex-1 p-2 overflow-y-auto space-y-1.5">
-                                    {isSearching
-                                        ? <div className="flex items-center justify-center p-6 text-text-secondary gap-2 text-xs"><Loader2 size={14} className="animate-spin text-accent" />Searching…</div>
-                                        : searchResults.length > 0
-                                            ? searchResults.map((r, i) => {
-                                                const fn = r.filePath.split(/[/\\]/).pop() || r.filePath;
-                                                const pinned = activeSession?.manualContext?.includes(r.filePath);
-                                                return (
-                                                    <div key={i} className="p-2.5 rounded-lg border border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.04)] hover:border-accent/30 transition-all group">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <div className="flex items-center gap-1.5 flex-1 truncate cursor-pointer" onClick={() => handleOpenFile(r.filePath, r.lineRangeStart)}>
-                                                                <FileText size={12} className="text-accent shrink-0" />
-                                                                <span className="truncate text-xs font-medium text-text-primary">{fn}</span>
-                                                                {r.lineRangeStart && <span className="text-[9px] text-text-secondary/50 shrink-0">:{r.lineRangeStart}</span>}
+                            {/* Search Tab */}
+                            {leftTab === 'search' && (
+                                <>
+                                    <div className="p-3 border-b border-[rgba(255,255,255,0.04)] shrink-0">
+                                        <form onSubmit={handleSearch} className="relative">
+                                            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Escape') setSearchQuery(''); }}
+                                                placeholder="Semantic + keyword search…"
+                                                className="w-full bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.1)] rounded-lg pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-accent transition-colors placeholder:text-text-secondary/50" />
+                                            <Search size={12} className="absolute left-2.5 top-2.5 text-text-secondary" />
+                                        </form>
+                                    </div>
+                                    <div className="flex-1 p-2 overflow-y-auto space-y-1.5">
+                                        {isSearching
+                                            ? <div className="flex items-center justify-center p-6 text-text-secondary gap-2 text-xs"><Loader2 size={14} className="animate-spin text-accent" />Searching…</div>
+                                            : searchResults.length > 0
+                                                ? searchResults.map((r, i) => {
+                                                    const fn = r.filePath.split(/[/\\]/).pop() || r.filePath;
+                                                    const pinned = activeSession?.manualContext?.includes(r.filePath);
+                                                    return (
+                                                        <div key={i} className="p-2.5 rounded-lg border border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.04)] hover:border-accent/30 transition-all group">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-1.5 flex-1 truncate cursor-pointer" onClick={() => handleOpenFile(r.filePath, r.lineRangeStart)}>
+                                                                    <FileText size={12} className="text-accent shrink-0" />
+                                                                    <span className="truncate text-xs font-medium text-text-primary">{fn}</span>
+                                                                    {r.lineRangeStart && <span className="text-[9px] text-text-secondary/50 shrink-0">:{r.lineRangeStart}</span>}
+                                                                </div>
+                                                                <button onClick={() => pinned ? handleUnpinFile(r.filePath) : handlePinFile(r.filePath)}
+                                                                    className={`shrink-0 p-1.5 rounded transition-colors ${pinned ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.1)]'}`}>
+                                                                    {pinned ? <X size={10} /> : <Plus size={10} />}
+                                                                </button>
                                                             </div>
-                                                            <button onClick={() => pinned ? handleUnpinFile(r.filePath) : handlePinFile(r.filePath)}
-                                                                className={`shrink-0 p-1.5 rounded transition-colors ${pinned ? 'bg-accent/20 text-accent' : 'text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.1)]'}`}>
-                                                                {pinned ? <X size={10} /> : <Plus size={10} />}
-                                                            </button>
+                                                            {r.snippet && <p className="mt-1.5 text-[10px] text-text-secondary font-mono leading-relaxed line-clamp-2 opacity-60">{r.snippet}</p>}
                                                         </div>
-                                                        {r.snippet && <p className="mt-1.5 text-[10px] text-text-secondary font-mono leading-relaxed line-clamp-2 opacity-60">{r.snippet}</p>}
+                                                    );
+                                                })
+                                                : <div className="text-center p-6 text-text-secondary text-xs opacity-50">Enter a concept or function name to search.</div>
+                                        }
+                                    </div>
+                                </>
+                            )}
+
+                            {/* File Tree Tab */}
+                            {leftTab === 'files' && (
+                                <div className="flex-1 p-2 overflow-y-auto">
+                                    {!treeLoaded
+                                        ? <div className="flex items-center justify-center p-6 gap-2 text-text-secondary text-xs"><Loader2 size={13} className="animate-spin" />Loading tree…</div>
+                                        : <FileTree nodes={fileTree} pinnedFiles={activeSession?.manualContext} onPinFile={handlePinFile} onOpenFile={handleOpenFile} />
+                                    }
+                                </div>
+                            )}
+
+                            {/* Context (Active Files) Tab */}
+                            {leftTab === 'active' && (
+                                <div className="flex-1 p-3 overflow-y-auto space-y-4">
+                                    <div>
+                                        <div className="text-[9px] font-bold tracking-widest text-text-secondary uppercase mb-2 flex items-center gap-1">
+                                            <Pin size={9} className="text-accent" />High Priority (Pinned)
+                                        </div>
+                                        {(!activeSession?.manualContext?.length)
+                                            ? <div className="text-xs text-text-secondary/40 pl-1">No files pinned yet.</div>
+                                            : activeSession.manualContext.map(fp => {
+                                                const fn = fp.split(/[/\\]/).pop() || fp;
+                                                return (
+                                                    <div key={fp} className="flex items-center justify-between p-2 mb-1 rounded bg-accent/5 border border-accent/15">
+                                                        <div className="flex items-center gap-2 truncate cursor-pointer hover:text-accent transition-colors" onClick={() => handleOpenFile(fp)}>
+                                                            <FileText size={11} className="text-accent/70 shrink-0" />
+                                                            <span className="truncate text-[11px]">{fn}</span>
+                                                        </div>
+                                                        <button onClick={() => handleUnpinFile(fp)} className="shrink-0 p-1 text-text-secondary hover:text-red-400 transition-colors"><X size={11} /></button>
                                                     </div>
                                                 );
                                             })
-                                            : <div className="text-center p-6 text-text-secondary text-xs opacity-50">Enter a concept or function name to search.</div>
-                                    }
-                                </div>
-                            </>
-                        )}
-
-                        {/* File Tree Tab */}
-                        {leftTab === 'files' && (
-                            <div className="flex-1 p-2 overflow-y-auto">
-                                {!treeLoaded
-                                    ? <div className="flex items-center justify-center p-6 gap-2 text-text-secondary text-xs"><Loader2 size={13} className="animate-spin" />Loading tree…</div>
-                                    : <FileTree nodes={fileTree} pinnedFiles={activeSession?.manualContext} onPinFile={handlePinFile} onOpenFile={handleOpenFile} />
-                                }
-                            </div>
-                        )}
-
-                        {/* Context (Active Files) Tab */}
-                        {leftTab === 'active' && (
-                            <div className="flex-1 p-3 overflow-y-auto space-y-4">
-                                <div>
-                                    <div className="text-[9px] font-bold tracking-widest text-text-secondary uppercase mb-2 flex items-center gap-1">
-                                        <Pin size={9} className="text-accent" />High Priority (Pinned)
+                                        }
                                     </div>
-                                    {(!activeSession?.manualContext?.length)
-                                        ? <div className="text-xs text-text-secondary/40 pl-1">No files pinned yet.</div>
-                                        : activeSession.manualContext.map(fp => {
-                                            const fn = fp.split(/[/\\]/).pop() || fp;
-                                            return (
-                                                <div key={fp} className="flex items-center justify-between p-2 mb-1 rounded bg-accent/5 border border-accent/15">
-                                                    <div className="flex items-center gap-2 truncate cursor-pointer hover:text-accent transition-colors" onClick={() => handleOpenFile(fp)}>
-                                                        <FileText size={11} className="text-accent/70 shrink-0" />
-                                                        <span className="truncate text-[11px]">{fn}</span>
+                                    <div>
+                                        <div className="text-[9px] font-bold tracking-widest text-text-secondary uppercase mb-2 flex items-center gap-1">
+                                            <Search size={9} />Secondary (Auto)
+                                        </div>
+                                        {(() => {
+                                            const last = activeSession?.messages.slice().reverse().find(m => m.role === 'assistant');
+                                            const pinned = activeSession?.manualContext || [];
+                                            const auto = (last?.citations || []).filter(c => !pinned.includes(c));
+                                            const refs = (last?.citationRefs || []).filter(r => !pinned.includes(r.filePath));
+                                            if (!auto.length) return <div className="text-xs text-text-secondary/40 pl-1">Ask a question to see retrieved files.</div>;
+                                            return auto.map(fp => {
+                                                const fn = fp.split(/[/\\]/).pop() || fp;
+                                                const ref = refs.find(r => r.filePath === fp);
+                                                return (
+                                                    <div key={fp} className="flex items-center justify-between p-2 mb-1 rounded hover:bg-bg-surface-active transition-colors">
+                                                        <div className="flex items-center gap-2 truncate cursor-pointer hover:text-accent" onClick={() => handleOpenFile(fp, ref?.lineRangeStart)}>
+                                                            <FileText size={11} className="text-text-secondary/50 shrink-0" />
+                                                            <span className="truncate text-[11px] text-text-secondary">{fn}</span>
+                                                            {ref?.lineRangeStart && <span className="text-[9px] text-text-secondary/40">:{ref.lineRangeStart}</span>}
+                                                        </div>
+                                                        <button onClick={() => handlePinFile(fp)} className="shrink-0 p-1 text-text-secondary hover:text-accent transition-colors" title="Promote to pinned"><Plus size={11} /></button>
                                                     </div>
-                                                    <button onClick={() => handleUnpinFile(fp)} className="shrink-0 p-1 text-text-secondary hover:text-red-400 transition-colors"><X size={11} /></button>
-                                                </div>
-                                            );
-                                        })
-                                    }
-                                </div>
-                                <div>
-                                    <div className="text-[9px] font-bold tracking-widest text-text-secondary uppercase mb-2 flex items-center gap-1">
-                                        <Search size={9} />Secondary (Auto)
+                                                );
+                                            });
+                                        })()}
                                     </div>
-                                    {(() => {
-                                        const last = activeSession?.messages.slice().reverse().find(m => m.role === 'assistant');
-                                        const pinned = activeSession?.manualContext || [];
-                                        const auto = (last?.citations || []).filter(c => !pinned.includes(c));
-                                        const refs = (last?.citationRefs || []).filter(r => !pinned.includes(r.filePath));
-                                        if (!auto.length) return <div className="text-xs text-text-secondary/40 pl-1">Ask a question to see retrieved files.</div>;
-                                        return auto.map(fp => {
-                                            const fn = fp.split(/[/\\]/).pop() || fp;
-                                            const ref = refs.find(r => r.filePath === fp);
-                                            return (
-                                                <div key={fp} className="flex items-center justify-between p-2 mb-1 rounded hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                                                    <div className="flex items-center gap-2 truncate cursor-pointer hover:text-accent" onClick={() => handleOpenFile(fp, ref?.lineRangeStart)}>
-                                                        <FileText size={11} className="text-text-secondary/50 shrink-0" />
-                                                        <span className="truncate text-[11px] text-text-secondary">{fn}</span>
-                                                        {ref?.lineRangeStart && <span className="text-[9px] text-text-secondary/40">:{ref.lineRangeStart}</span>}
-                                                    </div>
-                                                    <button onClick={() => handlePinFile(fp)} className="shrink-0 p-1 text-text-secondary hover:text-accent transition-colors" title="Promote to pinned"><Plus size={11} /></button>
-                                                </div>
-                                            );
-                                        });
-                                    })()}
                                 </div>
-                            </div>
-                        )}
-                    </section>
-                </Panel>
+                            )}
+                        </section>
+                    </Panel>
+                )}
 
-                <PanelResizeHandle className="w-1 bg-transparent hover:bg-accent/30 transition-colors cursor-col-resize" />
+                {!zenMode && <PanelResizeHandle className="w-1 bg-transparent hover:bg-accent/30 transition-colors cursor-col-resize" />}
 
                 {/* Chat Panel */}
                 <Panel minSize={35}>
-                    <main className="h-full bg-bg-main flex flex-col relative overflow-hidden">
+                    <main className={`h-full bg-bg-main flex flex-col relative overflow-hidden ${zenMode ? 'mx-auto w-full' : ''}`} style={zenMode ? { maxWidth: '800px' } : undefined}>
                         {/* Header */}
                         <header className="px-5 py-3 border-b border-glass-border flex items-center justify-between bg-bg-main/80 backdrop-blur-md shrink-0">
                             <div className="flex items-center gap-3">
@@ -687,9 +691,12 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                     <Bot size={14} className="text-accent" />
                                 </div>
                                 <span className="text-sm font-semibold">{activeSession?.title || 'Atlas Chat'}</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(255,255,255,0.06)] text-text-secondary border border-glass-border">{model}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-bg-elevated text-text-secondary border border-border-subtle shadow-sm">{model}</span>
                             </div>
                             <div className="flex items-center gap-1">
+                                <button onClick={toggleZenMode} title={zenMode ? 'Exit Zen Mode (Ctrl+J)' : 'Zen Mode (Ctrl+J)'} className={`p-2 hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors ${zenMode ? 'text-accent' : 'text-text-secondary'}`}>
+                                    {zenMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                </button>
                                 <button onClick={handleExportChat} title="Export as Markdown" className="p-2 text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors"><Download size={14} /></button>
                                 <button onClick={() => setShowSettings(true)} title="Settings (Ctrl+,)" className="p-2 text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors"><Settings size={14} /></button>
                             </div>
@@ -724,8 +731,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             </button>
                                         )}
 
-                                        <div className={`max-w-[88%] rounded-2xl p-5 ${msg.role === 'user'
-                                            ? 'bg-[rgba(95,168,255,0.08)] border border-[rgba(95,168,255,0.18)]'
+                                        <div className={`max-w-[88%] rounded-2xl p-5 shadow-sm ${msg.role === 'user'
+                                            ? 'bg-accent-muted border border-accent/20'
                                             : 'bg-glass-bg border border-glass-border'}`}>
                                             <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-0">
                                                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
@@ -735,7 +742,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
                                             {/* Citations */}
                                             {msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
-                                                <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)]">
+                                                <div className="mt-4 pt-4 border-t border-border-subtle">
                                                     <div className="text-[9px] text-text-secondary mb-2 font-bold uppercase tracking-widest">Sources</div>
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {msg.citations.map((cite, j) => {
@@ -787,7 +794,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
                         {/* Input */}
                         <div className="p-4 shrink-0">
-                            <div className="border border-[rgba(255,255,255,0.1)] rounded-xl bg-[rgba(20,25,35,0.6)] backdrop-blur-md focus-within:border-accent/50 focus-within:shadow-[0_0_20px_rgba(95,168,255,0.07)] transition-all duration-300 flex flex-col shadow-lg">
+                            <div className="border border-border-default rounded-xl bg-bg-elevated/60 backdrop-blur-md focus-within:border-accent/50 focus-within:shadow-2xl focus-within:shadow-accent/5 transition-all duration-300 flex flex-col shadow-lg">
                                 {/* Context bar */}
                                 <div className="px-4 py-2 border-b border-[rgba(255,255,255,0.05)] flex items-center gap-2 overflow-x-auto min-h-[36px]">
                                     <span className="text-[9px] font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap">Ctx:</span>
@@ -819,7 +826,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                     placeholder="Ask about your codebase… (Enter to send, Shift+Enter for newline)"
                                 />
 
-                                <div className="px-4 py-2.5 border-t border-[rgba(255,255,255,0.05)] flex justify-between items-center bg-[rgba(0,0,0,0.15)] rounded-b-xl">
+                                <div className="px-4 py-2.5 border-t border-border-subtle flex justify-between items-center bg-bg-inset rounded-b-xl">
                                     <div className="flex items-center gap-2">
                                         <span className="text-[9px] text-text-secondary/60 font-bold tracking-widest uppercase">{workspace.name}</span>
                                         <select
@@ -854,7 +861,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             </button>
                                         )}
                                         <button onClick={() => handleSubmitChat()} disabled={!inputQuery.trim() || isGenerating}
-                                            className={`flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-200 ${!inputQuery.trim() || isGenerating ? 'bg-[rgba(255,255,255,0.04)] text-text-secondary cursor-not-allowed' : 'bg-white text-black hover:bg-zinc-200 active:scale-95'}`}>
+                                            className={`flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-200 ${!inputQuery.trim() || isGenerating ? 'bg-bg-surface-active text-text-muted cursor-not-allowed' : 'bg-text-primary text-bg-main hover:opacity-90 active:scale-95 shadow-md'}`}>
                                             {isGenerating ? <><Loader2 size={12} className="animate-spin" />Thinking</> : <>Send<Send size={12} /></>}
                                         </button>
                                     </div>

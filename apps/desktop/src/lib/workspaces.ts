@@ -4,6 +4,10 @@ export interface Workspace {
     folderPath: string;
     model: string;
     indexedAt: number;
+    displayName?: string;
+    icon?: string;
+    lastOpened?: number;
+    stats?: { files: number; chunks: number };
 }
 
 const KEY = 'atlas_workspaces';

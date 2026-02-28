@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Button } from './Button';
 import { GlassPanel } from './GlassPanel';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen, Cpu, Loader2, AlertCircle, CheckCircle, Plus, Trash2, ExternalLink } from 'lucide-react';
-import { fetchModels, checkOllamaStatus, startIndexing } from '../lib/api';
+import { FolderOpen, Cpu, Loader2, AlertCircle, CheckCircle, Plus, Trash2, ExternalLink, Compass } from 'lucide-react';
+import { fetchModels, checkOllamaStatus, startIndexing, listenIndexProgress, fetchOpenRouterModels } from '../lib/api';
 import {
-    loadWorkspaces, addOrUpdateWorkspace, removeWorkspace, setActiveWorkspaceId,
+    loadWorkspaces, addOrUpdateWorkspace, removeWorkspace, setActiveWorkspaceId, patchWorkspace,
     type Workspace
 } from '../lib/workspaces';
 import { toast } from '../lib/toast';
@@ -40,15 +40,10 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
 
             if (settings.provider === 'openrouter') {
                 try {
-                    const orRes = await fetch(`${settings.backendUrl}/api/openrouter-models${settings.openRouterApiKey ? `?apiKey=${settings.openRouterApiKey}` : ''}`);
-                    if (orRes.ok) {
-                        const data = await orRes.json();
-                        const ms = [...data.free, ...data.paid].map((m: any) => m.id);
-                        setModels(ms);
-                        if (ms.length > 0 && !selectedModel) setSelectedModel(ms[0]);
-                    } else {
-                        setModels([]);
-                    }
+                    const orRes = await fetchOpenRouterModels(settings.openRouterApiKey);
+                    const ms = [...orRes.free, ...orRes.paid];
+                    setModels(ms);
+                    if (ms.length > 0 && !selectedModel) setSelectedModel(ms[0]);
                 } catch {
                     setModels([]);
                 }
@@ -61,7 +56,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
             }
         };
         init();
-    }, [settings.provider, settings.backendUrl, settings.openRouterApiKey]);
+    }, [settings.provider, settings.openRouterApiKey]);
 
     const selectFolder = async () => {
         if (isIndexing) return;
@@ -72,6 +67,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
     };
 
     const openWorkspace = (ws: Workspace) => {
+        patchWorkspace(ws.id, { lastOpened: Date.now() });
         setActiveWorkspaceId(ws.id);
         onIndexed(ws);
     };
@@ -91,17 +87,14 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
 
         try {
             const jobId = await startIndexing(folderPath, selectedModel);
-            const eventSource = new EventSource(`http://127.0.0.1:47291/api/index-progress/${jobId}`);
-
-            eventSource.onmessage = (event) => {
-                const data = JSON.parse(event.data);
+            const unlisten = await listenIndexProgress(jobId, (data) => {
                 if (data.status === 'running') {
                     setStatusMsg(`Indexing files… (${data.processedFiles} processed, ${data.totalChunks} chunks)`);
-                    setProgress(50); // Set to indeterminate-like state
+                    setProgress(50);
                 } else if (data.status === 'completed') {
                     setStatusMsg('Indexing complete!');
                     setProgress(100);
-                    eventSource.close();
+                    unlisten();
                     const folderName = folderPath.split(/[/\\]/).pop() || folderPath;
                     const ws: Workspace = {
                         id: crypto.randomUUID(),
@@ -118,17 +111,10 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
                 } else if (data.status === 'failed') {
                     setStatusMsg('Indexing failed. Check logs.');
                     setIsIndexing(false);
-                    eventSource.close();
+                    unlisten();
                     toast('Indexing failed', 'error');
                 }
-            };
-
-            eventSource.onerror = () => {
-                setStatusMsg('Connection lost. Please try again.');
-                setIsIndexing(false);
-                eventSource.close();
-                toast('Connection to backend lost', 'error');
-            };
+            });
         } catch (err: any) {
             setStatusMsg(err.message || 'An error occurred.');
             setIsIndexing(false);
@@ -193,7 +179,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
                 {hasWorkspaces && !showNew && (
                     <GlassPanel className="p-5 space-y-3">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide" id="workspaces-heading">Recent Workspaces</h2>
+                            <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide" id="workspaces-heading">Your Workspaces</h2>
                             <button
                                 onClick={() => setShowNew(true)}
                                 aria-label="Create a new workspace"
@@ -203,39 +189,77 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
                             </button>
                         </div>
                         <div className="space-y-2" role="list" aria-labelledby="workspaces-heading">
-                            {workspaces.map(ws => (
-                                <div
-                                    key={ws.id}
-                                    role="listitem"
-                                >
+                            {workspaces.map(ws => {
+                                const displayName = ws.displayName || ws.name;
+                                const icon = ws.icon || '📁';
+                                const timeAgo = ws.lastOpened
+                                    ? (() => {
+                                        const diff = Date.now() - ws.lastOpened;
+                                        const mins = Math.floor(diff / 60000);
+                                        if (mins < 1) return 'Just now';
+                                        if (mins < 60) return `${mins}m ago`;
+                                        const hrs = Math.floor(mins / 60);
+                                        if (hrs < 24) return `${hrs}h ago`;
+                                        const days = Math.floor(hrs / 24);
+                                        return `${days}d ago`;
+                                    })()
+                                    : ws.indexedAt
+                                        ? new Date(ws.indexedAt).toLocaleDateString()
+                                        : null;
+
+                                return (
                                     <div
+                                        key={ws.id}
+                                        role="listitem"
                                         onClick={() => openWorkspace(ws)}
                                         onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && openWorkspace(ws)}
                                         tabIndex={0}
-                                        aria-label={`Open workspace: ${ws.name} at ${ws.folderPath}`}
-                                        className="flex items-center gap-3 p-3 rounded-lg border border-glass-border hover:border-accent/40 hover:bg-accent/5 cursor-pointer group transition-all focus:outline-none focus:ring-2 focus:ring-accent/40"
+                                        aria-label={`Open workspace: ${displayName} at ${ws.folderPath}`}
+                                        className="flex items-center gap-3 p-3.5 rounded-xl border border-border-subtle hover:border-accent/40 hover:bg-bg-surface-hover hover:shadow-md hover:shadow-accent/5 cursor-pointer group transition-all focus:outline-none focus:ring-2 focus:ring-accent/40"
                                     >
-                                        <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0" aria-hidden="true">
-                                            <FolderOpen size={15} className="text-accent" />
+                                        <div className="w-10 h-10 rounded-xl bg-bg-surface border border-border-subtle flex items-center justify-center shrink-0 text-lg group-hover:border-accent/30 transition-colors" aria-hidden="true">
+                                            {icon}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-medium text-sm text-text-primary truncate">{ws.name}</div>
-                                            <div className="text-[10px] text-text-secondary truncate opacity-60" title={ws.folderPath}>{ws.folderPath}</div>
+                                            <div className="font-medium text-sm text-text-primary truncate">{displayName}</div>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[10px] text-text-muted truncate" title={ws.folderPath}>{ws.folderPath}</span>
+                                                {timeAgo && <span className="text-[10px] text-text-muted shrink-0">· {timeAgo}</span>}
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity">
                                             <ExternalLink size={13} className="text-accent" aria-hidden="true" />
                                             <button
                                                 onClick={e => deleteWorkspace(ws.id, e)}
-                                                aria-label={`Delete workspace ${ws.name}`}
+                                                aria-label={`Delete workspace ${displayName}`}
                                                 className="p-1 hover:text-red-400 text-text-secondary transition-colors focus:outline-none focus:ring-2 focus:ring-red-400/50 rounded"
                                             >
                                                 <Trash2 size={12} aria-hidden="true" />
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
+                    </GlassPanel>
+                )}
+
+                {/* Empty State */}
+                {!hasWorkspaces && !showNew && (
+                    <GlassPanel className="p-8 flex flex-col items-center text-center space-y-4">
+                        <div className="w-16 h-16 rounded-2xl bg-bg-surface border border-border-subtle flex items-center justify-center">
+                            <Compass size={28} className="text-accent opacity-50" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-text-primary">Welcome to Atlas</h2>
+                            <p className="text-sm text-text-secondary mt-1 max-w-xs">Get started by indexing a local folder. Atlas will learn your codebase and answer questions about it.</p>
+                        </div>
+                        <button
+                            onClick={() => setShowNew(true)}
+                            className="flex items-center gap-2 text-sm font-medium text-white hover:text-white bg-accent hover:bg-accent-hover shadow-lg shadow-accent/20 border border-transparent px-5 py-2.5 rounded-xl transition-all"
+                        >
+                            <Plus size={16} /> Create Your First Workspace
+                        </button>
                     </GlassPanel>
                 )}
 
@@ -311,7 +335,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
                         <Button
                             onClick={handleInitialize}
                             disabled={!folderPath || !selectedModel || isIndexing || (settings.provider === 'ollama' && !isOllamaRunning)}
-                            className={`w-full py-3 text-sm font-semibold relative overflow-hidden ${isIndexing ? '!bg-glass-bg' : '!bg-[rgba(95,168,255,0.15)] hover:!bg-[rgba(95,168,255,0.25)] border !border-[rgba(95,168,255,0.4)] !text-accent hover:shadow-[0_0_20px_rgba(95,168,255,0.15)]'}`}
+                            className={`w-full py-3 text-sm font-semibold relative overflow-hidden transition-all duration-300 ${isIndexing ? 'bg-glass-bg border border-glass-border text-text-primary' : 'bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/25 border border-transparent'}`}
                         >
                             {isIndexing ? (
                                 <div className="flex items-center justify-center gap-2 text-text-primary">

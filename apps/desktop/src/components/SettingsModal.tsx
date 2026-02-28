@@ -4,6 +4,7 @@ import {
     Eye, EyeOff, Loader2, ChevronDown, ChevronRight,
     Cpu, ExternalLink, CheckCircle2, Zap,
 } from 'lucide-react';
+import { fetchOpenRouterModels as fetchOrModels } from '../lib/api';
 
 export type LLMProvider = 'ollama' | 'openrouter';
 
@@ -62,13 +63,12 @@ const KNOWN_OLLAMA_MODELS = [
 
 // openrouter model picker
 interface ModelBrowserProps {
-    backendUrl: string;
     apiKey: string;
     selectedModel: string;
     onSelect: (id: string) => void;
 }
 
-function OpenRouterModelBrowser({ backendUrl, apiKey, selectedModel, onSelect }: ModelBrowserProps) {
+function OpenRouterModelBrowser({ apiKey, selectedModel, onSelect }: ModelBrowserProps) {
     const [freeModels, setFreeModels] = useState<OpenRouterModel[]>([]);
     const [paidModels, setPaidModels] = useState<OpenRouterModel[]>([]);
     const [loading, setLoading] = useState(false);
@@ -77,16 +77,14 @@ function OpenRouterModelBrowser({ backendUrl, apiKey, selectedModel, onSelect }:
     const [paidSearch, setPaidSearch] = useState('');
     const [fetched, setFetched] = useState(false);
 
-    const fetchModels = async () => {
+    const loadModels = async () => {
         setLoading(true);
         setError('');
         try {
-            const qs = apiKey ? `?apiKey=${encodeURIComponent(apiKey)}` : '';
-            const res = await fetch(`${backendUrl}/api/openrouter-models${qs}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json() as { free: OpenRouterModel[]; paid: OpenRouterModel[] };
-            setFreeModels(data.free);
-            setPaidModels(data.paid);
+            const data = await fetchOrModels(apiKey);
+            // Map string arrays to OpenRouterModel shape for display
+            setFreeModels(data.free.map(id => ({ id, name: id, pricing: { prompt: '0', completion: '0' }, context_length: 0, isFree: true })));
+            setPaidModels(data.paid.map(id => ({ id, name: id, pricing: { prompt: '?', completion: '?' }, context_length: 0, isFree: false })));
             setFetched(true);
         } catch (e: any) {
             setError(e.message || 'Failed to fetch models');
@@ -146,7 +144,7 @@ function OpenRouterModelBrowser({ backendUrl, apiKey, selectedModel, onSelect }:
         <div className="space-y-2">
             {!fetched ? (
                 <button
-                    onClick={fetchModels}
+                    onClick={loadModels}
                     disabled={loading}
                     className="w-full flex items-center justify-center gap-2 py-2 text-xs rounded-lg border border-accent/30 text-accent hover:bg-accent/10 transition-colors disabled:opacity-50"
                 >
@@ -155,7 +153,7 @@ function OpenRouterModelBrowser({ backendUrl, apiKey, selectedModel, onSelect }:
                 </button>
             ) : (
                 <button
-                    onClick={fetchModels}
+                    onClick={loadModels}
                     disabled={loading}
                     className="flex items-center gap-1 text-[10px] text-text-secondary hover:text-white transition-colors ml-auto"
                 >
@@ -416,7 +414,6 @@ export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onCl
                                     </div>
                                 )}
                                 <OpenRouterModelBrowser
-                                    backendUrl={draft.backendUrl}
                                     apiKey={draft.openRouterApiKey}
                                     selectedModel={draft.model}
                                     onSelect={id => set('model', id)}
@@ -442,16 +439,7 @@ export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onCl
                             </p>
                         </div>
                     )}
-                    <div>
-                        <label htmlFor="setting-backend-url" className="label-sm">Atlas Backend URL</label>
-                        <input
-                            id="setting-backend-url"
-                            type="url"
-                            value={draft.backendUrl}
-                            onChange={e => set('backendUrl', e.target.value)}
-                            className="input-field"
-                        />
-                    </div>
+                    {/* backendUrl removed — Rust core is embedded */}
 
                     {/* ── Context slots ─────────────────────────────────── */}
                     <div>

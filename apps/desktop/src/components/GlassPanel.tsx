@@ -12,7 +12,7 @@ export const GlassPanel = forwardRef<HTMLDivElement, GlassPanelProps>(
                 ref={ref}
                 className={cn(
                     "rounded-[8px] border border-glass-border backdrop-blur-[10px]",
-                    subtle ? "bg-[rgba(20,25,35,0.12)]" : "bg-glass-bg",
+                    subtle ? "bg-[var(--border-subtle)]" : "bg-glass-bg",
                     className
                 )}
                 {...props}

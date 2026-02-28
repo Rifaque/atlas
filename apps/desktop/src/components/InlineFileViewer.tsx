@@ -67,8 +67,8 @@ export function InlineFileViewer({ filePath, lineStart, onClose }: InlineFileVie
                             id={`line-${lineNum}`}
                             className={`flex group transition-colors px-4
                                 ${isTarget ? 'bg-accent/20 border-l-2 border-accent' :
-                                    isFocus ? 'bg-[rgba(255,255,255,0.02)] border-l-2 border-transparent' :
-                                        'hover:bg-[rgba(255,255,255,0.01)] border-l-2 border-transparent'}`}
+                                    isFocus ? 'bg-[var(--border-subtle)] border-l-2 border-transparent' :
+                                        'hover:bg-[var(--border-subtle)] border-l-2 border-transparent'}`}
                         >
                             <span className="w-10 shrink-0 text-text-secondary/30 text-right pr-4 select-none group-hover:text-text-secondary/60">
                                 {lineNum}
@@ -87,13 +87,13 @@ export function InlineFileViewer({ filePath, lineStart, onClose }: InlineFileVie
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-12 animate-in fade-in duration-200">
             <div className="bg-bg-main border border-glass-border shadow-2xl rounded-xl w-full max-w-6xl h-full flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-[rgba(255,255,255,0.02)] border-b border-glass-border">
+                <div className="flex items-center justify-between px-4 py-3 bg-bg-elevated border-b border-glass-border">
                     <div className="flex items-center gap-3 truncate">
                         <div className="p-1.5 rounded-lg bg-accent/10 border border-accent/20">
                             <Code2 size={16} className="text-accent" />
                         </div>
                         <div className="flex flex-col truncate">
-                            <span className="text-sm font-semibold text-white truncate">{fileName}</span>
+                            <span className="text-sm font-semibold text-text-primary truncate">{fileName}</span>
                             <span className="text-[10px] text-text-secondary truncate opacity-60 flex items-center gap-1">
                                 {filePath} {lineStart && <span className="text-accent ml-1 px-1 rounded bg-accent/10">Line {lineStart}</span>}
                             </span>
@@ -103,7 +103,7 @@ export function InlineFileViewer({ filePath, lineStart, onClose }: InlineFileVie
                         <button
                             onClick={handleOpenInSystem}
                             title="Open in default editor"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-[rgba(255,255,255,0.06)] text-xs text-text-secondary hover:text-white transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-bg-surface-hover text-xs text-text-secondary hover:text-text-primary transition-colors"
                         >
                             <ExternalLink size={14} /> Open
                         </button>
@@ -118,7 +118,7 @@ export function InlineFileViewer({ filePath, lineStart, onClose }: InlineFileVie
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-auto bg-[#0d1117] selection:bg-accent/30 py-4">
+                <div className="flex-1 overflow-auto bg-[var(--code-bg)] selection:bg-accent/30 py-4">
                     {isLoading ? (
                         <div className="h-full flex flex-col items-center justify-center text-text-secondary/50 gap-4">
                             <Loader2 size={24} className="animate-spin text-accent" />

@@ -63,7 +63,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 {toasts.map(t => (
                     <div
                         key={t.id}
-                        className={`flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#0f1520]/95 border ${BORDERS[t.type]} backdrop-blur-md shadow-2xl text-text-primary text-sm font-medium animate-in slide-in-from-right-4 fade-in duration-300 pointer-events-auto`}
+                        className={`flex items-center gap-2.5 px-4 py-3 rounded-xl bg-bg-surface/95 border ${BORDERS[t.type]} backdrop-blur-md shadow-2xl text-text-primary text-sm font-medium animate-in slide-in-from-right-4 fade-in duration-300 pointer-events-auto`}
                     >
                         {ICONS[t.type]}
                         <span className="flex-1">{t.message}</span>

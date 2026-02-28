@@ -1,4 +1,4 @@
-# Atlas - Development Todo List
+# Atlas — Development Todo List (v0.2.0)
 
 Based on the [Product Requirements Document](prd.md), [UI/UX Design Document](design%20doc.md), and [Technical Stack Document](tech%20stack.md).
 
@@ -103,3 +103,12 @@ Based on the [Product Requirements Document](prd.md), [UI/UX Design Document](de
 - [x] **Remote Workspace Sync** — Trigger backend `git pull` from the workspace sidebar.
 - [x] **GitHub Releases & Auto-Updater** — Added `.github/workflows/release.yml` with Tauri updater config.
 - [x] **One-Command Installer** — Added `install.ps1` for Windows users.
+
+## Phase 9: Unified Rust Core (v0.2.0) ✅
+- [x] **Sidecar Elimination** — Removed Fastify Node.js sidecar; all backend logic moved to Rust Tauri commands.
+- [x] **Rust Modules** — Implemented `crawler.rs`, `manifest.rs`, `embeddings.rs`, `llm.rs`, `vectorstore.rs`, `commands.rs`.
+- [x] **LanceDB Rust Crate** — Using native Rust `lancedb` crate instead of Node.js NAPI bindings.
+- [x] **Frontend Migration** — All `fetch()` calls replaced with Tauri `invoke()` / `listen()` in `api.ts`.
+- [x] **Removed externalBin** — No more `bin/atlas-backend` in `tauri.conf.json`.
+- [x] **Removed BackendOfflineBanner** — No backend health checks needed; Rust core is always available.
+

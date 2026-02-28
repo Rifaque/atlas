@@ -1,8 +1,8 @@
 # Atlas — Technical Architecture Document
 
-> **Version:** 1.0  
+> **Version:** 2.0 (v0.2.0)  
 > **Date:** February 2026  
-> **Stack:** Tauri 2 + React 18 + Fastify + LanceDB + Ollama / OpenRouter
+> **Stack:** Tauri 2 + React 18 + Rust Core (LanceDB + reqwest) + Ollama / OpenRouter
 
 ---
 
@@ -24,21 +24,21 @@ The core technology is **Retrieval-Augmented Generation (RAG)** — a technique 
 │  │   WorkspaceLayout • LandingScreen • SettingsModal  │  │
 │  │   InlineFileViewer • FileTree • ChatUI             │  │
 │  └──────────────────────┬─────────────────────────────┘  │
-│                         │ HTTP (localhost:47291)         │
+│                         │ Tauri IPC (invoke / listen)    │
 │  ┌──────────────────────▼─────────────────────────────┐  │
-│  │          Fastify Backend Sidecar (Node.js)         │  │
-│  │   /api/chat  /api/index  /api/search  /api/sync    │  │
-│  │   /api/index-progress  /api/file-content           │  │
+│  │             Rust Core (src-tauri/src/)              │  │
+│  │   commands.rs • crawler.rs • manifest.rs            │  │
+│  │   embeddings.rs • llm.rs • vectorstore.rs           │  │
 │  └──────┬───────────────────────────┬─────────────────┘  │
 │         │                           │                    │
 │  ┌──────▼──────┐           ┌────────▼───────┐            │
 │  │  LanceDB    │           │  Ollama / OR   │            │
-│  │ (vector DB) │           │ (LLM & Embed)  │            │
+│  │ (Rust crate)│           │ (LLM & Embed)  │            │
 │  └─────────────┘           └────────────────┘            │
 └──────────────────────────────────────────────────────────┘
 ```
 
-The Fastify backend runs as a **sidecar process** spawned by the Tauri shell on startup. The frontend communicates with it over localhost HTTP. This separation means the backend can also be run standalone (`pnpm run dev`) for debugging.
+As of v0.2.0, Atlas is a **single-binary application**. The frontend communicates with the Rust core via Tauri IPC (`invoke()` / `listen()`). There is no separate backend process, HTTP server, or sidecar.
 
 ---
 
@@ -47,12 +47,12 @@ The Fastify backend runs as a **sidecar process** spawned by the Tauri shell on 
 ### Phase 1: Indexing (Offline, one-time + incremental)
 
 #### 1.1 File Crawling
-The `crawlDirectory` function in `crawler.ts` walks the workspace folder recursively. It:
-- Respects `.gitignore` rules using the `ignore` library
+The `crawl_directory` function in `crawler.rs` walks the workspace folder asynchronously. It:
+- Respects `.gitignore` rules using the `ignore` Rust crate
 - Applies a hardcoded blocklist (`node_modules/`, `.git/`, `build/`, `target/`, `dist/`, `venv/`, etc.)
-- Filters to a specific set of allowed extensions (`.java`, `.py`, `.ts`, `.pdf`, `.docx`, `.md`, etc.)
+- Filters to a specific set of allowed extensions (`.java`, `.py`, `.ts`, `.js`, `.pdf`, `.docx`, `.md`, etc.)
 - Skips files larger than 10 MB (generated bundles, lock files)
-- Parses each file to plaintext: standard UTF-8 for code/text, `pdf-parse` for PDFs, `mammoth` for Word documents
+- Reads plaintext files via `tokio::fs`
 
 #### 1.2 Incremental Manifest
 Before processing each file, the indexer checks a **manifest** file stored at `~/.atlas/manifests/<workspace-id>.json`. The manifest records the `mtime` (last modified timestamp in milliseconds) and chunk count for every indexed file. A file is skipped if its current `mtime` matches the manifest — only new or modified files are re-processed. This makes subsequent index runs near-instant for large codebases.
@@ -70,8 +70,8 @@ Each child chunk text is sent to Ollama's `/api/embed` endpoint (with batching, 
 
 The embedding model is **always `nomic-embed-text`** regardless of which chat model the user has selected.
 
-#### 1.5 Vector Storage in ChromaDB
-The resulting embedding vector, along with the child text and a metadata object, is stored in a ChromaDB collection named `atlas_workspace`. The metadata object contains:
+#### 1.5 Vector Storage in LanceDB
+The resulting embedding vector, along with the child text and a metadata object, is stored in a LanceDB table named `atlas_workspace` using Arrow arrays. The metadata contains:
 - `filePath` — absolute path on disk
 - `chunkIndex` — position of this chunk in the file
 - `lineRangeStart` / `lineRangeEnd` — line numbers in the source file
@@ -90,7 +90,7 @@ This hypothetical answer is then embedded with `nomic-embed-text`. The intuition
 HyDE only runs with Ollama (it's free). With OpenRouter, it's skipped to avoid spending API credits on the warmup call.
 
 #### 2.2 Semantic Search (Cosine Similarity in ChromaDB)
-The HyDE embedding (or raw query embedding if HyDE failed) is used to perform an approximate nearest-neighbour search in ChromaDB. Atlas over-samples by fetching **30 candidates** (instead of just the top 8 it needs) to give the re-ranking stage enough material to work with.
+The HyDE embedding (or raw query embedding if HyDE failed) is used to perform an approximate nearest-neighbour search in LanceDB. Atlas over-samples by fetching **30 candidates** (instead of just the top 8 it needs) to give the re-ranking stage enough material to work with.
 
 #### 2.3 Three-Stage Re-Ranking Pipeline
 This is where Atlas goes significantly beyond basic RAG. The 30 semantic candidates are passed through a pure-TypeScript re-ranking pipeline with three stages:
@@ -146,10 +146,10 @@ USER QUESTION: [the actual question]
 FOLLOW_UP_SUGGESTIONS: [format instruction]
 ```
 
-This prompt is sent to the LLM via a streaming HTTP request (Ollama `/api/generate` or OpenRouter `/v1/chat/completions`). The Fastify backend streams each token chunk to the React frontend as Server-Sent Events (SSE). The frontend renders chunks in real-time. Ollama is called with `num_ctx: 32768` (32K token context) to ensure large prompts including pinned files are never truncated.
+This prompt is sent to the LLM via a streaming HTTP request (Ollama `/api/generate` or OpenRouter `/v1/chat/completions`). The Rust core streams each token chunk to the React frontend as Tauri events. The frontend renders chunks in real-time.
 
 #### 2.8 Follow-up Suggestion Extraction
-After streaming completes, the backend scans the full accumulated response for the `FOLLOW_UP_SUGGESTIONS:` marker, parses the 3 numbered suggestions, and sends them as a separate SSE `suggestions` event. The frontend renders these as clickable buttons below the assistant message.
+After streaming completes, the Rust core scans the full accumulated response for the `FOLLOW_UP_SUGGESTIONS:` marker, parses the 3 numbered suggestions, and sends them as a separate Tauri event. The frontend renders these as clickable buttons below the assistant message.
 
 ---
 
@@ -179,7 +179,7 @@ After streaming completes, the backend scans the full accumulated response for t
 | **Conversation Memory** | Sends the last 6 turns verbatim; older turns are compressed into a summary by the LLM to prevent context overflow. |
 | **Project Directory Map** | Injects a serialised file-tree into every prompt so the LLM has structural awareness of the whole project. |
 | **Follow-up Suggestions** | The LLM generates 3 contextual follow-up questions at the end of every response; shown as clickable buttons in the UI. |
-| **Streaming Responses** | LLM tokens are streamed from Ollama/OpenRouter → Fastify SSE → React UI in real-time for a responsive chat experience. |
+| **Streaming Responses** | LLM tokens are streamed from Ollama/OpenRouter → Rust core → Tauri events → React UI in real-time for a responsive chat experience. |
 
 ### Indexing & File Support
 | Feature | Description |
@@ -232,8 +232,8 @@ After streaming completes, the backend scans the full accumulated response for t
 ### Developer Experience
 | Feature | Description |
 |---|---|
-| **Backend as Sidecar** | The Fastify backend runs as a Tauri sidecar process; startup failures are non-fatal so the backend can be run manually in a terminal for debugging. |
-| **SSE Progress Streaming** | Indexing progress (processed files, total chunks) streams in real-time to the frontend via Server-Sent Events. |
+| **Unified Rust Core** | All backend logic runs inside the Tauri binary — no sidecar process, no HTTP server, no port conflicts. |
+| **Tauri Event Streaming** | Indexing progress and chat chunks stream from Rust → React via Tauri `emit()` / `listen()` events in real-time. |
 | **Monorepo Structure** | Organised as a `pnpm` workspace with internal packages (`@atlas/chunking`, `@atlas/embeddings`, `@atlas/rag`, `@atlas/retrieval`) that can be developed and versioned independently. |
 
 ---
@@ -248,16 +248,18 @@ packages/
 └── retrieval/    — LanceDB AtlasVectorStore + BM25/RRF/Cross-encoder re-ranker
 
 apps/
-├── backend/      — Fastify API server (indexing, chat, search, sync, file-tree)
-│   ├── crawler.ts    — File walker, PDF/DOCX parser
-│   ├── indexer.ts    — Incremental indexing job runner
-│   ├── manifest.ts   — mtime-based incremental index manifest
-│   ├── watcher.ts    — Chokidar background file watcher
-│   └── index.ts      — Fastify route definitions
+├── backend/      — Legacy Fastify backend (preserved, unused in v0.2.0+)
 └── desktop/      — Tauri + React 18 application
-    ├── src-tauri/    — Rust shell, sidecar management, capabilities
+    ├── src-tauri/    — Rust core
+    │   ├── crawler.rs     — Async file walker, .gitignore-aware
+    │   ├── manifest.rs    — mtime-based incremental index manifest
+    │   ├── embeddings.rs  — Ollama embedding client with batching
+    │   ├── llm.rs         — Streaming chat (Ollama + OpenRouter)
+    │   ├── vectorstore.rs — LanceDB wrapper (store, search, delete)
+    │   ├── commands.rs    — Tauri IPC command handlers
+    │   └── lib.rs         — App entry, command registration
     └── src/
-        ├── lib/          — API client, workspace/chat/settings persistence
+        ├── lib/          — API client (invoke/listen), workspace/chat persistence
         └── components/   — WorkspaceLayout, LandingScreen, SettingsModal,
                             FileTree, InlineFileViewer
 ```

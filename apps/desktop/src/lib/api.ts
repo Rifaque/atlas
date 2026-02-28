@@ -1,11 +1,12 @@
-const API_BASE_URL = 'http://127.0.0.1:47291/api';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { v4 as uuidv4 } from 'uuid';
+
+// ─── Models & Status ────────────────────────────────────────────────────────
 
 export async function fetchModels(): Promise<string[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/models`);
-        if (!response.ok) throw new Error('Failed to fetch models');
-        const data = await response.json();
-        return data.models;
+        return await invoke<string[]>('list_models', {});
     } catch {
         return [];
     }
@@ -13,10 +14,14 @@ export async function fetchModels(): Promise<string[]> {
 
 export async function fetchOpenRouterModels(apiKey?: string): Promise<{ free: string[]; paid: string[] }> {
     try {
-        const url = apiKey ? `${API_BASE_URL}/openrouter-models?apiKey=${encodeURIComponent(apiKey)}` : `${API_BASE_URL}/openrouter-models`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch OpenRouter models');
-        return await response.json();
+        const data = await invoke<{ free: { id: string }[]; paid: { id: string }[] }>(
+            'list_openrouter_models',
+            { apiKey: apiKey || null }
+        );
+        return {
+            free: data.free.map((m: { id: string }) => m.id),
+            paid: data.paid.map((m: { id: string }) => m.id),
+        };
     } catch {
         return { free: [], paid: [] };
     }
@@ -24,38 +29,79 @@ export async function fetchOpenRouterModels(apiKey?: string): Promise<{ free: st
 
 export async function checkOllamaStatus(): Promise<string> {
     try {
-        const response = await fetch(`${API_BASE_URL}/status`);
-        if (!response.ok) throw new Error('Failed to fetch status');
-        const data = await response.json();
-        return data.status;
+        return await invoke<string>('check_status', {});
     } catch {
         return 'offline';
     }
 }
 
+// ─── Indexing ────────────────────────────────────────────────────────────────
+
 export async function startIndexing(folderPath: string, model: string): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/index`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPath, model })
+    return await invoke<string>('start_indexing', { folderPath, model });
+}
+
+export interface IndexProgress {
+    status: string;
+    processedFiles?: number;
+    totalChunks?: number;
+    error?: string;
+}
+
+/** Listen for index progress events. Returns an unlisten function. */
+export async function listenIndexProgress(
+    jobId: string,
+    onProgress: (data: IndexProgress) => void,
+): Promise<UnlistenFn> {
+    return listen<IndexProgress>(`index-progress-${jobId}`, (event) => {
+        onProgress(event.payload);
     });
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to start indexing');
-    }
-    const data = await response.json();
-    return data.jobId;
 }
 
 export async function fetchIndexStats(): Promise<{ count: number }> {
     try {
-        const response = await fetch(`${API_BASE_URL}/index-stats`);
-        if (!response.ok) return { count: 0 };
-        return response.json();
+        return await invoke<{ count: number }>('get_index_stats', {});
     } catch {
         return { count: 0 };
     }
 }
+
+// ─── Chat ────────────────────────────────────────────────────────────────────
+
+export interface ChatStreamEvent {
+    type: 'chunk' | 'citations' | 'suggestions' | 'error' | 'done';
+    data?: any;
+}
+
+export interface ChatRequest {
+    query: string;
+    model: string;
+    provider?: string;
+    apiKey?: string;
+    ollamaHost?: string;
+    manualFiles?: string[];
+    systemPrompt?: string;
+    folderPath?: string;
+    history?: { role: string; content: string }[];
+}
+
+/** Start a chat and return the event ID + unlisten function. */
+export async function startChat(
+    request: ChatRequest,
+    onEvent: (event: ChatStreamEvent) => void,
+): Promise<{ eventId: string; unlisten: UnlistenFn }> {
+    const eventId = `chat-stream-${uuidv4()}`;
+
+    const unlisten = await listen<ChatStreamEvent>(eventId, (event) => {
+        onEvent(event.payload);
+    });
+
+    await invoke('start_chat', { eventId, request });
+
+    return { eventId, unlisten };
+}
+
+// ─── Search ──────────────────────────────────────────────────────────────────
 
 export interface SearchResult {
     filePath: string;
@@ -65,32 +111,28 @@ export interface SearchResult {
 
 export async function searchFiles(query: string, model: string, folderPath?: string): Promise<SearchResult[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, model, folderPath })
+        return await invoke<SearchResult[]>('search_files', {
+            query,
+            model,
+            folderPath: folderPath || null,
         });
-        if (!response.ok) throw new Error('Search failed');
-        const data = await response.json();
-        return data.files || [];
     } catch {
         return [];
     }
 }
 
+// ─── File Operations ─────────────────────────────────────────────────────────
+
 export interface FileNode {
     name: string;
     path: string;
-    type: 'file' | 'dir';
+    type: 'file' | 'directory';
     children?: FileNode[];
 }
 
 export async function fetchFileTree(folderPath: string): Promise<FileNode[]> {
     try {
-        const response = await fetch(`${API_BASE_URL}/files?folderPath=${encodeURIComponent(folderPath)}`);
-        if (!response.ok) return [];
-        const data = await response.json();
-        return data.tree || [];
+        return await invoke<FileNode[]>('get_file_tree', { folderPath });
     } catch {
         return [];
     }
@@ -98,20 +140,21 @@ export async function fetchFileTree(folderPath: string): Promise<FileNode[]> {
 
 export async function fetchFileContent(filePath: string): Promise<string> {
     try {
-        const response = await fetch(`${API_BASE_URL}/file/content?filePath=${encodeURIComponent(filePath)}`);
-        if (!response.ok) return '';
-        const data = await response.json();
+        const data = await invoke<{ content: string; totalLines: number }>('read_file', {
+            filePath,
+            start: null,
+            end: null,
+        });
         return data.content || '';
     } catch {
         return '';
     }
 }
 
-export async function fetchOllamaStatus(host = 'http://127.0.0.1:11434'): Promise<boolean> {
-    try {
-        const res = await fetch(host);
-        return res.ok;
-    } catch {
-        return false;
-    }
+// ─── Legacy compatibility ────────────────────────────────────────────────────
+// These map to the old function names used by some components
+
+export async function fetchOllamaStatus(): Promise<boolean> {
+    const status = await checkOllamaStatus();
+    return status === 'online';
 }

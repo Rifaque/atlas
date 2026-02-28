@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -27,4 +27,21 @@ tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-shell = "2"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "fs", "io-util", "sync", "macros", "rt-multi-thread"] }
+
+# Phase 2: Sidecar elimination
+reqwest = { version = "0.12", features = ["json", "stream"] }
+ignore = "0.4"                    # .gitignore-aware directory walking
+walkdir = "2"                     # recursive directory traversal
+lancedb = "0.15"                  # vector database
+arrow = { version = "53", default-features = false }
+arrow-array = "53"
+arrow-schema = "53"
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+futures = "0.3"
+sha2 = "0.10"                     # file hashing for manifest
+async-recursion = "1"             # async recursive functions
+dirs = "5"                        # cross-platform home directory
+regex = "1"                       # pattern matching (greetings etc.)
+pdf-extract = "0.10.0"
