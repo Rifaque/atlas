@@ -34,12 +34,19 @@ jobs:
         if: matrix.os-name == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl wget
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl wget protobuf-compiler
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Install Protoc (Windows)
+        if: matrix.os-name == 'windows'
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '29.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

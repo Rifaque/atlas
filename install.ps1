@@ -24,6 +24,15 @@ if (!(Get-Command "cargo" -ErrorAction SilentlyContinue)) {
     $env:Path += ";$HOME\.cargo\bin"
 }
 
+if (!(Get-Command "protoc" -ErrorAction SilentlyContinue)) {
+    Write-Host "[Atlas] Installing Protoc (Protocol Buffers Compiler)..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-win64.zip" -OutFile "protoc.zip"
+    Expand-Archive -Path "protoc.zip" -DestinationPath "C:\protoc" -Force
+    Remove-Item "protoc.zip"
+    [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\protoc\bin", [System.EnvironmentVariableTarget]::User)
+    $env:Path += ";C:\protoc\bin"
+}
+
 if (!(Get-Command "ollama" -ErrorAction SilentlyContinue)) {
     Write-Host "[Atlas] Installing Ollama..." -ForegroundColor Yellow
     winget install --id Ollama.Ollama -e --source winget
@@ -33,13 +42,8 @@ if (!(Get-Command "ollama" -ErrorAction SilentlyContinue)) {
 Write-Host "[Atlas] Installing dependencies..." -ForegroundColor Cyan
 pnpm install
 
-Write-Host "[Atlas] Building monorepo..." -ForegroundColor Cyan
+Write-Host "[Atlas] Building monorepo (this builds both frontend and Tauri app)..." -ForegroundColor Cyan
 pnpm run build
-
-Write-Host "[Atlas] Building Backend Sidecar..." -ForegroundColor Cyan
-Set-Location -Path "apps\backend"
-pnpm run build:sidecar
-Set-Location -Path "..\.."
 
 Write-Host "[Atlas] Launching Desktop App..." -ForegroundColor Cyan
 Set-Location -Path "apps\desktop"
