@@ -83,6 +83,8 @@ export interface ChatRequest {
     systemPrompt?: string;
     folderPath?: string;
     history?: { role: string; content: string }[];
+    /** The model used for indexing — used for query embedding to match vector dimensions */
+    embeddingModel?: string;
 }
 
 /** Start a chat and return the event ID + unlisten function. */

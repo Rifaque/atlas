@@ -267,6 +267,9 @@ pub struct ChatRequest {
     #[allow(dead_code)]
     pub folder_path: Option<String>,
     pub history: Option<Vec<HistoryTurn>>,
+    /// The model used for indexing embeddings — may differ from chat model
+    #[serde(rename = "embeddingModel")]
+    pub embedding_model: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -343,10 +346,14 @@ async fn run_chat(
         .clone()
         .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
 
+    // Use the embedding model (workspace indexing model) for query embedding.
+    // Falls back to the chat model if not provided.
+    let embed_model = request.embedding_model.as_deref().unwrap_or(&request.model);
+
     // Generate query embedding for retrieval
     let query_embeddings = embeddings::generate_embeddings(
         &[request.query.clone()],
-        &request.model,
+        embed_model,
         &host,
     )
     .await?;

@@ -19,7 +19,7 @@ function TreeNode({ node, pinnedFiles, onPinFile, onOpenFile, depth }: {
     const [expanded, setExpanded] = useState(depth < 1);
     const isPinned = pinnedFiles?.includes(node.path);
 
-    if (node.type === 'dir') {
+    if (node.type === 'directory') {
         return (
             <div>
                 <button

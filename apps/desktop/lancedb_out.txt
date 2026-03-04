@@ -1,0 +1,4 @@
+Opening DB at C:\Users\rifaq/.atlas/lancedb
+Tables found: ['atlas_4096', 'atlas_workspace']
+--- Table atlas_4096 --- Rows: 31
+--- Table atlas_workspace --- Rows: 2

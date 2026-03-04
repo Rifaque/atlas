@@ -18,11 +18,9 @@ jobs:
           - platform: windows-latest
             os-name: windows
             target: x86_64-pc-windows-msvc
-            sidecar_cmd: build:sidecar
           - platform: ubuntu-22.04
             os-name: linux
             target: x86_64-unknown-linux-gnu
-            sidecar_cmd: build:sidecar:linux
 
     runs-on: ${{ matrix.platform }}
     permissions:
@@ -80,10 +78,6 @@ jobs:
 
       - name: Build workspace packages
         run: pnpm run build
-
-      - name: Build backend sidecar
-        working-directory: apps/backend
-        run: pnpm run ${{ matrix.sidecar_cmd }}
 
       - name: Build Tauri application
         uses: tauri-apps/tauri-action@v0

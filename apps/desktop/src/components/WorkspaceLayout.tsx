@@ -250,7 +250,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         if (!searchQuery.trim()) return;
         setIsSearching(true);
         try {
-            const r = await searchFiles(searchQuery, model, workspace.folderPath);
+            const r = await searchFiles(searchQuery, workspace.model, workspace.folderPath);
             setSearchResults(r);
             if (r.length === 0) toast('No files matched your query', 'info');
         } catch { toast('Search failed', 'error'); }
@@ -358,6 +358,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     systemPrompt: settings.systemPrompt,
                     folderPath: workspace.folderPath,
                     history,
+                    embeddingModel: workspace.model, // match indexed vector dimensions
                 },
                 (event) => {
                     if (event.type === 'chunk' && event.data?.chunk !== undefined) {
