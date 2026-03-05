@@ -1,0 +1,115 @@
+﻿cargo :     Checking 
+app v0.3.0 (C:\Users\ri
+faq\Documents\Projects\
+atlas\apps\desktop\src-
+tauri)
+At line:1 char:1
++ cargo check 2>&1 | 
+Out-File -Encoding 
+utf8 error4.txt
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (    Checking    
+ ap...ktop\src-taur    
+i):String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+error[E0433]: failed 
+to resolve: could not 
+find 
+`__cmd__scan_secrets` 
+in `commands`
+  --> src\lib.rs:53:23
+   |
+53 |             
+commands::scan_secrets,
+   |                   
+    ^^^^^^^^^^^^ could 
+not find 
+`__cmd__scan_secrets` 
+in `commands`
+
+error[E0433]: failed 
+to resolve: could not 
+find 
+`__cmd__web_search` in 
+`commands`
+  --> src\lib.rs:54:23
+   |
+54 |             
+commands::web_search,
+   |                   
+    ^^^^^^^^^^ could 
+not find 
+`__cmd__web_search` in 
+`commands`
+
+error[E0433]: failed 
+to resolve: could not 
+find 
+`__cmd__get_timeline` 
+in `commands`
+  --> src\lib.rs:55:23
+   |
+55 |             
+commands::get_timeline,
+   |                   
+    ^^^^^^^^^^^^ could 
+not find 
+`__cmd__get_timeline` 
+in `commands`
+
+error: implementation 
+of `FnOnce` is not 
+general enough
+  --> 
+src\commands.rs:83:5
+   |
+83 | /     tauri::async
+_runtime::spawn(async 
+move {
+84 | |         if let 
+Err(e) = 
+run_indexing_job(&app, 
+&state, &jid, 
+&folder_path, 
+&model).await {
+85 | |             
+log::error!("[indexer] 
+Job {} failed: {}", 
+jid, e);
+86 | |             let 
+mut jobs = state.jobs.l
+ock().await;
+...  |
+96 | |     });
+   | |______^ 
+implementation of 
+`FnOnce` is not 
+general enough
+   |
+   = note: closure 
+with signature `fn(&'0 
+[ChunkData]) -> {async 
+block@src\commands.rs:2
+16:17: 216:27}` must 
+implement `FnOnce<(&'1 
+[ChunkData],)>`, for 
+any two lifetimes `'0` 
+and `'1`...
+   = note: ...but it 
+actually implements `Fn
+Once<(&[ChunkData],)>`
+
+For more information 
+about this error, try 
+`rustc --explain 
+E0433`.
+error: could not 
+compile `app` (lib) 
+due to 4 previous 
+errors

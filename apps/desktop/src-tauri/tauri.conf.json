@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atlas",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "identifier": "com.atlas.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -13,8 +13,10 @@
     "windows": [
       {
         "title": "Atlas",
-        "width": 800,
-        "height": 600,
+        "width": 1200,
+        "height": 1000,
+        "minWidth": 1000,
+        "minHeight": 800,
         "resizable": true,
         "fullscreen": false
       }
@@ -45,7 +47,7 @@
         "installMode": "passive"
       },
       "endpoints": [
-        "https://github.com/atlas-org/atlas/releases/latest/download/latest.json"
+        "https://github.com/Rifaque/atlas/releases/latest/download/latest.json"
       ],
       "pubkey": "YOUR_PUBKEY_HERE"
     }

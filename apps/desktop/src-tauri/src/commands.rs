@@ -9,11 +9,13 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 use uuid::Uuid;
+use futures::stream::StreamExt;
 
 /// Shared application state
 pub struct AppState {
     pub store: AtlasVectorStore,
     pub jobs: Mutex<HashMap<String, IndexingJob>>,
+    pub query_cache: Mutex<lru::LruCache<String, Vec<f32>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +27,14 @@ pub struct IndexingJob {
     pub total_chunks: usize,
     pub error: Option<String>,
     pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineEvent {
+    pub file_path: String,
+    pub relative_path: String,
+    pub mtime: f64,
+    pub change_type: String, // "modified" (can be extended to "created" if we track it)
 }
 
 // ─── Status & Models ─────────────────────────────────────────────────────────
@@ -109,10 +119,17 @@ async fn run_indexing_job(
     let mut total_chunks: usize = 0;
     let mut processed: usize = 0;
     let batch_size = 8;
+    let concurrency_limit = 4;
 
-    // ── Simple text chunking (port of the TS chunkTextParentChild logic) ──
-    // For Phase 2, we do a simple line-based chunking approach
-    // A proper parent-child chunker can be added later
+    struct ChunkData {
+        file_path: String,
+        text: String,
+        start_line: i32,
+        end_line: i32,
+        chunk_index: i32,
+    }
+
+    let mut chunks_to_process = Vec::new();
 
     for file in &files {
         processed += 1;
@@ -149,38 +166,15 @@ async fn run_indexing_job(
             start += chunk_size - overlap;
         }
 
-        // Process in batches
-        let mut file_chunk_count = 0u32;
-        for batch in chunks.chunks(batch_size) {
-            let texts: Vec<String> = batch.iter().map(|(t, _, _)| t.clone()).collect();
-            let embeddings = embeddings::generate_embeddings(
-                &texts,
-                model,
-                "http://127.0.0.1:11434",
-            )
-            .await?;
-
-            let ids: Vec<String> = batch.iter().map(|_| Uuid::new_v4().to_string()).collect();
-            let metadatas: Vec<StoredChunkMetadata> = batch
-                .iter()
-                .enumerate()
-                .map(|(i, (_, start_line, end_line))| StoredChunkMetadata {
-                    file_path: file.file_path.clone(),
-                    chunk_index: (file_chunk_count + i as u32) as i32,
-                    line_range_start: *start_line,
-                    line_range_end: *end_line,
-                    parent_text: None,
-                    parent_line_range_start: None,
-                    parent_line_range_end: None,
-                })
-                .collect();
-
-            state
-                .store
-                .store_chunks(ids, embeddings, metadatas, texts)
-                .await?;
-
-            file_chunk_count += batch.len() as u32;
+        let file_chunk_count = chunks.len() as u32;
+        for (i, (text, start_line, end_line)) in chunks.into_iter().enumerate() {
+            chunks_to_process.push(ChunkData {
+                file_path: file.file_path.clone(),
+                text,
+                start_line,
+                end_line,
+                chunk_index: i as i32,
+            });
         }
 
         total_chunks += file_chunk_count as usize;
@@ -219,6 +213,79 @@ async fn run_indexing_job(
     }
 
     manifest::save_manifest(folder_path, &manifest_data);
+
+    if !chunks_to_process.is_empty() {
+        // Group into owned batches to avoid lifetime issues in async stream
+        let mut batches = Vec::new();
+        let mut current_batch = Vec::new();
+        for chunk in chunks_to_process {
+            current_batch.push(chunk);
+            if current_batch.len() == batch_size {
+                batches.push(current_batch);
+                current_batch = Vec::new();
+            }
+        }
+        if !current_batch.is_empty() {
+            batches.push(current_batch);
+        }
+
+        let model_str = model.to_string();
+
+        let mut stream = futures::stream::iter(batches)
+            .map(|batch| {
+                let texts: Vec<String> = batch.iter().map(|c| c.text.clone()).collect();
+                let m = model_str.clone();
+                async move {
+                    let embeddings_res =
+                        embeddings::generate_embeddings(&texts, &m, "http://127.0.0.1:11434").await;
+                    (batch, texts, embeddings_res)
+                }
+            })
+            .buffer_unordered(concurrency_limit);
+
+        let mut chunks_embedded = 0;
+        while let Some((batch, texts, embeddings_res)) = stream.next().await {
+            let embeddings = embeddings_res?;
+            let ids: Vec<String> = batch.iter().map(|_| Uuid::new_v4().to_string()).collect();
+            let metadatas: Vec<StoredChunkMetadata> = batch
+                .iter()
+                .map(|c| StoredChunkMetadata {
+                    file_path: c.file_path.clone(),
+                    chunk_index: c.chunk_index,
+                    line_range_start: c.start_line,
+                    line_range_end: c.end_line,
+                    parent_text: None,
+                    parent_line_range_start: None,
+                    parent_line_range_end: None,
+                })
+                .collect();
+
+            state
+                .store
+                .store_chunks(ids, embeddings, metadatas, texts)
+                .await?;
+
+            chunks_embedded += batch.len();
+            
+            let mut jobs = state.jobs.lock().await;
+            if let Some(job) = jobs.get_mut(job_id) {
+                job.processed_files = if total_chunks > 0 {
+                    (chunks_embedded * files.len()) / total_chunks
+                } else {
+                    files.len()
+                };
+            }
+
+            let _ = app.emit(
+                &format!("index-progress-{}", job_id),
+                serde_json::json!({
+                    "status": "running",
+                    "processedFiles": if total_chunks > 0 { (chunks_embedded * files.len()) / total_chunks } else { files.len() },
+                    "totalChunks": total_chunks,
+                }),
+            );
+        }
+    }
 
     // Mark job complete
     {
@@ -544,14 +611,33 @@ pub async fn search_files(
     model: String,
     _folder_path: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let embeddings = embeddings::generate_embeddings(
-        &[query],
-        &model,
-        "http://127.0.0.1:11434",
-    )
-    .await?;
+    // Create a cache key based on model and query
+    let cache_key = format!("{}::{}", model, query);
+    
+    // Check cache first
+    let cached_embedding = {
+        let mut cache = state.query_cache.lock().await;
+        cache.get(&cache_key).cloned()
+    };
 
-    let query_embedding = embeddings.into_iter().next().ok_or("No embedding")?;
+    let query_embedding = if let Some(emb) = cached_embedding {
+        emb
+    } else {
+        let embeddings = embeddings::generate_embeddings(
+            &[query.clone()],
+            &model,
+            "http://127.0.0.1:11434",
+        )
+        .await?;
+        
+        let emb = embeddings.into_iter().next().ok_or("No embedding")?;
+        
+        // Save to cache
+        let mut cache = state.query_cache.lock().await;
+        cache.put(cache_key, emb.clone());
+        
+        emb
+    };
     let results = state.store.similarity_search(query_embedding, 10).await?;
 
     // Format for the frontend
@@ -639,4 +725,59 @@ fn rand_index(max: usize) -> usize {
         .unwrap_or_default()
         .subsec_nanos() as usize
         % max
+}
+
+#[tauri::command]
+pub async fn get_timeline(folder_path: String, hours: f64) -> Result<Vec<TimelineEvent>, String> {
+    let files = crate::crawler::crawl_directory(&folder_path).await?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs_f64() * 1000.0;
+    
+    let threshold = now - (hours * 3600.0 * 1000.0);
+    let mut events = Vec::new();
+
+    for file in files {
+        if let Ok(meta) = std::fs::metadata(&file.file_path) {
+            let mtime = meta.modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs_f64() * 1000.0)
+                .unwrap_or(0.0);
+            
+            if mtime > threshold {
+                let relative_path = file.file_path
+                    .strip_prefix(&folder_path)
+                    .unwrap_or(&file.file_path)
+                    .trim_start_matches(|c| c == '/' || c == '\\')
+                    .to_string();
+
+                events.push(TimelineEvent {
+                    file_path: file.file_path,
+                    relative_path,
+                    mtime,
+                    change_type: "modified".to_string(),
+                });
+            }
+        }
+    }
+
+    events.sort_by(|a, b| b.mtime.partial_cmp(&a.mtime).unwrap_or(std::cmp::Ordering::Equal));
+
+    Ok(events)
+}
+
+#[tauri::command]
+pub async fn scan_secrets(text: String) -> Vec<crate::shield::SecretMatch> {
+    crate::shield::scan_for_secrets(&text)
+}
+
+#[tauri::command]
+pub async fn web_search(
+    query: String,
+    api_key: String,
+    provider: String,
+) -> Result<Vec<crate::websearch::WebResult>, String> {
+    crate::websearch::search_web(&query, &api_key, &provider).await
 }

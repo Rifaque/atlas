@@ -1,0 +1,13 @@
+    Checking app v0.3.0 (C:\Users\rifaq\Documents\Projects\atlas\apps\desktop\src-tauri)
+error: unexpected closing delimiter: `}`
+   --> src\commands.rs:733:1
+    |
+729 |     Ok(serde_json::json!({
+    |                          - this opening brace...
+...
+732 |     }))
+    |     - ...matches this closing brace
+733 | }
+    | ^ unexpected closing delimiter
+
+error: could not compile `app` (lib) due to 1 previous error

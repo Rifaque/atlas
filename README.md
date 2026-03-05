@@ -76,28 +76,13 @@ This builds all the internal packages (`@atlas/chunking`, `@atlas/embeddings`, `
 
 You have two options:
 
-#### Option A — Run everything through Tauri (recommended for testing the full app)
+#### Option A — Run the full app
 
 ```bash
 pnpm --filter desktop exec tauri dev
 ```
 
-This starts the Vite dev server, the Tauri shell, and spawns the backend sidecar automatically.
-
-#### Option B — Run backend separately (recommended for debugging)
-
-Terminal 1 — Backend:
-```bash
-cd apps/backend
-pnpm run dev
-```
-
-Terminal 2 — Desktop frontend:
-```bash
-pnpm --filter desktop exec tauri dev
-```
-
-Running the backend separately gives you cleaner logs in a dedicated terminal. The Tauri sidecar startup is non-fatal — if the backend is already running on port 47291, the app will use the existing process.
+This starts the Vite dev server and the Tauri shell (which runs the embedded Rust core).
 
 ---
 
@@ -112,20 +97,6 @@ Running the backend separately gives you cleaner logs in a dedicated terminal. T
 ---
 
 ## Building for Production
-
-### Build the backend as a standalone binary (sidecar)
-
-The production Tauri app bundles the backend as a native binary so users don't need Node.js installed:
-
-```bash
-cd apps/backend
-pnpm run build:sidecar
-```
-
-This compiles the TypeScript, then uses `pkg` to produce a self-contained `.exe` at:
-```
-apps/desktop/src-tauri/bin/atlas-backend-x86_64-pc-windows-msvc.exe
-```
 
 ### Build the Tauri app
 
@@ -143,19 +114,11 @@ The installer/executable will be output to `apps/desktop/src-tauri/target/releas
 ```
 atlas/
 ├── apps/
-│   ├── backend/          # Fastify API server (Node.js)
-│   │   ├── src/
-│   │   │   ├── index.ts      # Route definitions (/api/chat, /api/index, ...)
-│   │   │   ├── indexer.ts    # Incremental indexing job runner
-│   │   │   ├── crawler.ts    # File walker + PDF/DOCX parser
-│   │   │   ├── manifest.ts   # mtime-based incremental index manifest
-│   │   │   └── watcher.ts    # Chokidar background file watcher
-│   │   └── package.json
 │   └── desktop/          # Tauri 2 + React 18 app
 │       ├── src/
 │       │   ├── components/   # WorkspaceLayout, LandingScreen, SettingsModal, ...
 │       │   └── lib/          # API client, chat/workspace/settings storage
-│       └── src-tauri/        # Rust shell, capabilities, sidecar config
+│       └── src-tauri/        # Rust shell, capabilities, and core logic
 ├── packages/
 │   ├── chunking/         # Parent-child text chunking
 │   ├── embeddings/       # Ollama /api/embed wrapper
@@ -186,9 +149,6 @@ All settings are accessible from the ⚙️ Settings modal in the app:
 
 ## Troubleshooting
 
-**"Backend connection failed"**  
-→ Make sure the backend is running: `cd apps/backend && pnpm run dev`  
-→ Check that port 47291 is free: `netstat -ano | findstr :47291`
 
 **"Ollama offline" indicator**  
 → Start Ollama: open the Ollama system tray app, or run `ollama serve`
@@ -210,7 +170,6 @@ All settings are accessible from the ⚙️ Settings modal in the app:
 |---|---|
 | Desktop Shell | Tauri 2 (Rust) |
 | Frontend | React 18, Vite, TypeScript |
-| Backend | Fastify (Node.js), TypeScript |
 | Vector Database | LanceDB (embedded) |
 | Embeddings | Ollama `nomic-embed-text` |
 | Local LLM | Ollama (any model) |

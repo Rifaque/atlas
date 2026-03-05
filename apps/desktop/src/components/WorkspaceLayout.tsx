@@ -7,10 +7,10 @@ import {
     Search, MessageSquare, Send, PanelLeftClose, PanelLeft, Bot,
     FileText, Loader2, PlusCircle, Plus, X, Pin, Trash2, Pencil,
     Check, Copy, Settings, StopCircle, Download, GitBranch, RefreshCcw, ArrowDown,
-    Maximize2, Minimize2, Sun, Moon
+    Maximize2, Minimize2, Sun, Moon, Image as ImageIcon
 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, startChat, checkOllamaStatus, type SearchResult, type FileNode } from '../lib/api';
+import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, startChat, checkOllamaStatus, scanSecrets, fetchTimeline, type SearchResult, type FileNode, type SecretMatch } from '../lib/api';
 import {
     loadChats, saveChat, createNewChat, deleteChat, renameChat,
     type ChatSession, type CitationRef
@@ -22,6 +22,8 @@ import { patchWorkspace, type Workspace } from '../lib/workspaces';
 import { InlineFileViewer } from './InlineFileViewer';
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette';
 import { toggleTheme, getCurrentTheme } from '../lib/theme';
+import { PERSONAS, getPersona, type Persona } from '../lib/personas';
+import { ModelSelector } from './ModelSelector';
 
 // code block that you can click to copy
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -86,6 +88,11 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     const [overrideModel, setOverrideModel] = useState<string>(''); // For multi-model routing
     const [showCommandPalette, setShowCommandPalette] = useState(false);
     const [currentTheme, setCurrentTheme] = useState(getCurrentTheme);
+    const [activePersona, setActivePersona] = useState<string>('default');
+    const [showPersonaPicker, setShowPersonaPicker] = useState(false);
+    const [shieldWarning, setShieldWarning] = useState<{ secrets: SecretMatch[]; query: string } | null>(null);
+    const [attachedImages, setAttachedImages] = useState<string[]>([]);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     const toggleZenMode = useCallback(() => {
         setZenMode(prev => {
@@ -310,14 +317,95 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
     const handleStop = () => { abortRef.current?.abort(); toast('Generation stopped', 'info'); };
 
+    const handleTimeline = async (hours: number = 24) => {
+        if (!activeSession) return;
+        try {
+            const events = await fetchTimeline(workspace.folderPath, hours);
+            if (events.length === 0) {
+                toast('No recent changes found.', 'info');
+                return;
+            }
+            const timelineText = events.map(e => `- ${e.relative_path} (modified ${new Date(e.mtime).toLocaleString()})`).join('\n');
+            const timelineQuery = `Analyze the following recent changes in the workspace (last ${hours} hours):\n${timelineText}\nWhat are the main changes and their impact?`;
+            // Directly start chat with this query, bypass input field
+            await startChat({
+                query: timelineQuery,
+                model: overrideModel || model,
+                provider,
+                apiKey: provider === 'openrouter' ? apiKey : undefined,
+                ollamaHost: provider === 'ollama' ? settings.ollamaHost : undefined,
+                manualFiles: activeSession.manualContext || [],
+                systemPrompt: settings.systemPrompt,
+                folderPath: workspace.folderPath,
+                history: [],
+                embeddingModel: workspace.model,
+                persona: activePersona !== 'default' ? activePersona : undefined,
+                webSearchEnabled: settings.webSearchEnabled || false,
+                webSearchApiKey: settings.webSearchEnabled ? settings.webSearchApiKey : undefined,
+                webSearchProvider: settings.webSearchEnabled ? settings.webSearchProvider : undefined,
+                images: [],
+            }, (_event) => {
+                // Reuse existing event handling logic (could refactor, but for now just ignore)
+            });
+        } catch (e) {
+            toast('Failed to fetch timeline.', 'error');
+        }
+    };
+
+
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        files.forEach(file => {
+            if (!file.type.startsWith('image/')) {
+                toast('Only images are supported', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const base64 = (ev.target?.result as string).split(',')[1];
+                setAttachedImages(prev => [...prev, base64]);
+            };
+            reader.readAsDataURL(file);
+        });
+        if (imageInputRef.current) imageInputRef.current.value = '';
+    };
+
+    const handleRemoveImage = (index: number) => {
+        setAttachedImages(prev => prev.filter((_, i) => i !== index));
+    };
+
     // handling chat submission
     const handleSubmitChat = async (e?: React.FormEvent, overrideQuery?: string) => {
         if (e) e.preventDefault();
         const q = (overrideQuery ?? inputQuery).trim();
         if (!q || isGenerating || !activeSession) return;
 
+        // Secret Shield: scan outgoing messages when using cloud providers
+        if (provider === 'openrouter') {
+            const secrets = await scanSecrets(q);
+            if (secrets.length > 0) {
+                setShieldWarning({ secrets, query: q });
+                return; // block until user confirms
+            }
+        }
+
+        await executeChat(q);
+    };
+
+    const handleShieldProceed = () => {
+        if (shieldWarning) {
+            executeChat(shieldWarning.query);
+            setShieldWarning(null);
+        }
+    };
+
+    const executeChat = async (q: string) => {
+        if (!activeSession) return;
+
         setActiveSession(p => p ? { ...p, messages: [...p.messages, { role: 'user', content: q }] } : null);
         setInputQuery('');
+        setAttachedImages([]);
         setIsGenerating(true);
 
         const activeModel = overrideModel || model;
@@ -359,6 +447,11 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     folderPath: workspace.folderPath,
                     history,
                     embeddingModel: workspace.model, // match indexed vector dimensions
+                    persona: activePersona !== 'default' ? activePersona : undefined,
+                    webSearchEnabled: settings.webSearchEnabled || false,
+                    webSearchApiKey: settings.webSearchEnabled ? settings.webSearchApiKey : undefined,
+                    webSearchProvider: settings.webSearchEnabled ? settings.webSearchProvider : undefined,
+                    images: attachedImages.length > 0 ? attachedImages : undefined,
                 },
                 (event) => {
                     if (event.type === 'chunk' && event.data?.chunk !== undefined) {
@@ -451,9 +544,27 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         }
     };
 
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            const mockEvent = { target: { files: e.dataTransfer.files } } as unknown as React.ChangeEvent<HTMLInputElement>;
+            handleImageUpload(mockEvent);
+        }
+    };
+
     // actual UI render
     return (
-        <div className="flex h-screen w-screen overflow-hidden text-text-primary bg-bg-main">
+        <div className="flex h-screen w-screen overflow-hidden text-text-primary bg-bg-main"
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+        >
             {showSettings && (
                 <SettingsModal settings={settings} indexedChunks={indexedChunks}
                     onSave={handleSaveSettings} onReindex={handleReindex} onClose={() => setShowSettings(false)} />
@@ -465,6 +576,43 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     lineStart={previewFile.lineStart}
                     onClose={() => setPreviewFile(null)}
                 />
+            )}
+
+            {/* Secret Shield Warning Modal */}
+            {shieldWarning && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShieldWarning(null)}>
+                    <div className="bg-[#0f1520] border border-red-500/30 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 text-red-400">
+                            <span className="text-lg">🛡️</span>
+                            <span className="font-semibold text-sm">Secret Shield — Sensitive Data Detected</span>
+                        </div>
+                        <p className="text-xs text-text-secondary">
+                            Your message contains potential secrets that will be sent to an external server (OpenRouter).
+                        </p>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                            {shieldWarning.secrets.map((s, i) => (
+                                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/5 border border-red-500/15 text-xs">
+                                    <span className="text-red-400 font-medium shrink-0">{s.kind}</span>
+                                    <code className="text-text-secondary font-mono truncate">{s.preview}</code>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                onClick={() => setShieldWarning(null)}
+                                className="flex-1 py-2 text-sm font-medium rounded-lg border border-glass-border text-text-secondary hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleShieldProceed}
+                                className="flex-1 py-2 text-sm font-medium rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 transition-colors"
+                            >
+                                Send Anyway
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Command Palette */}
@@ -481,6 +629,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     { id: 'zen-toggle', label: zenMode ? 'Exit Zen Mode' : 'Enter Zen Mode', icon: <Maximize2 size={14} />, category: 'action', onSelect: toggleZenMode },
                     { id: 'export', label: 'Export Chat as Markdown', icon: <Download size={14} />, category: 'action', onSelect: handleExportChat },
                     { id: 'sync', label: 'Sync Workspace', icon: <RefreshCcw size={14} />, category: 'action', onSelect: handleSyncWorkspace },
+                    { id: 'timeline', label: 'Timeline: What changed recently?', icon: <RefreshCcw size={14} />, category: 'action', onSelect: () => handleTimeline(24) },
                 ] as CommandPaletteAction[]}
             />
 
@@ -489,17 +638,18 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                 <div className="p-3 border-b border-glass-border flex items-center justify-between whitespace-nowrap">
                     <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Chats</span>
                     <div className="flex items-center gap-1">
-                        <button onClick={handleNewChat} title="New Chat (Ctrl+K)" className="p-1 text-text-secondary hover:text-white transition-colors"><PlusCircle size={14} /></button>
-                        <button onClick={handleExportChat} title="Export Chat" className="p-1 text-text-secondary hover:text-text-primary transition-colors"><Download size={14} /></button>
+                        <button onClick={handleNewChat} data-tooltip="New Chat (Ctrl+K)" className="p-1 text-text-secondary hover:text-white transition-colors" title=""><PlusCircle size={14} /></button>
+                        <button onClick={handleExportChat} data-tooltip="Export Chat" className="p-1 text-text-secondary hover:text-text-primary transition-colors" title=""><Download size={14} /></button>
                         <button
                             onClick={() => { const next = toggleTheme(); setCurrentTheme(next === 'dark' ? 'dark' : 'light'); }}
-                            title="Toggle Theme"
+                            data-tooltip="Toggle Theme"
                             className="p-1 text-text-secondary hover:text-text-primary transition-colors"
+                            title=""
                         >
                             {currentTheme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
                         </button>
-                        <button onClick={() => setShowSettings(true)} title="Settings (Ctrl+,)" className="p-1 text-text-secondary hover:text-text-primary transition-colors"><Settings size={14} /></button>
-                        <button onClick={() => setSidebarOpen(false)} title="Collapse" className="p-1 text-text-secondary hover:text-white transition-colors"><PanelLeftClose size={14} /></button>
+                        <button onClick={() => setShowSettings(true)} data-tooltip="Settings (Ctrl+,)" className="p-1 text-text-secondary hover:text-text-primary transition-colors" title=""><Settings size={14} /></button>
+                        <button onClick={() => setSidebarOpen(false)} data-tooltip="Collapse" className="p-1 text-text-secondary hover:text-white transition-colors" title=""><PanelLeftClose size={14} /></button>
                     </div>
                 </div>
 
@@ -553,10 +703,10 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
             </aside>
 
             {/* Resizable Panels */}
-            <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+            <PanelGroup autoSaveId="atlas-main-layout" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* Search / File Tree Panel — hidden in Zen Mode */}
                 {!zenMode && (
-                    <Panel defaultSize={28} minSize={18} maxSize={45}>
+                    <Panel id="sidebar-tools" order={1} defaultSize={28} minSize={18} maxSize={45}>
                         <section className="h-full border-r border-glass-border bg-[rgba(20,25,35,0.12)] flex flex-col">
                             {/* Tab header */}
                             <div className="flex border-b border-[rgba(255,255,255,0.04)] text-xs font-medium shrink-0 relative">
@@ -680,11 +830,11 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     </Panel>
                 )}
 
-                {!zenMode && <PanelResizeHandle className="w-1 bg-transparent hover:bg-accent/30 transition-colors cursor-col-resize" />}
+                {!zenMode && <PanelResizeHandle className="w-1.5 bg-transparent hover:bg-accent/30 active:bg-accent/50 transition-colors cursor-col-resize border-l border-r border-transparent" />}
 
                 {/* Chat Panel */}
-                <Panel minSize={35}>
-                    <main className={`h-full bg-bg-main flex flex-col relative overflow-hidden ${zenMode ? 'mx-auto w-full' : ''}`} style={zenMode ? { maxWidth: '800px' } : undefined}>
+                <Panel id="chat-main" order={2} minSize={35}>
+                    <main className={`h-full bg-bg-main flex flex-col relative overflow-hidden ${zenMode ? 'mx-auto' : ''}`} style={zenMode ? { width: '100%', maxWidth: '1200px' } : { width: '100%' }}>
                         {/* Header */}
                         <header className="px-5 py-3 border-b border-glass-border flex items-center justify-between bg-bg-main/80 backdrop-blur-md shrink-0">
                             <div className="flex items-center gap-3">
@@ -693,13 +843,48 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                 </div>
                                 <span className="text-sm font-semibold">{activeSession?.title || 'Atlas Chat'}</span>
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-bg-elevated text-text-secondary border border-border-subtle shadow-sm">{model}</span>
+                                {/* Persona Selector */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowPersonaPicker(v => !v)}
+                                        className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-all ${activePersona !== 'default'
+                                            ? 'bg-accent/10 border-accent/40 text-accent'
+                                            : 'bg-bg-elevated border-border-subtle text-text-secondary hover:border-accent/30'
+                                            }`}
+                                        data-tooltip="Switch Persona"
+                                        title=""
+                                    >
+                                        <span>{getPersona(activePersona).icon}</span>
+                                        <span className="hidden sm:inline">{getPersona(activePersona).name}</span>
+                                    </button>
+                                    {showPersonaPicker && (
+                                        <div className="absolute top-full left-0 mt-1.5 z-50 w-56 bg-[#0f1520]/80 backdrop-blur-xl border border-glass-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {PERSONAS.map((p: Persona) => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => { setActivePersona(p.id); setShowPersonaPicker(false); toast(`Persona: ${p.name}`, 'info'); }}
+                                                    className={`w-full text-left px-3 py-2 flex items-center gap-2 text-xs transition-colors ${activePersona === p.id
+                                                        ? 'bg-accent/10 text-accent'
+                                                        : 'text-text-secondary hover:bg-[rgba(255,255,255,0.04)] hover:text-text-primary'
+                                                        }`}
+                                                >
+                                                    <span className="text-sm">{p.icon}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium">{p.name}</div>
+                                                        <div className="text-[9px] opacity-50 truncate">{p.description}</div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-1">
-                                <button onClick={toggleZenMode} title={zenMode ? 'Exit Zen Mode (Ctrl+J)' : 'Zen Mode (Ctrl+J)'} className={`p-2 hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors ${zenMode ? 'text-accent' : 'text-text-secondary'}`}>
+                                <button onClick={toggleZenMode} data-tooltip={zenMode ? 'Exit Zen Mode (Ctrl+J)' : 'Zen Mode (Ctrl+J)'} className={`p-2 hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors ${zenMode ? 'text-accent' : 'text-text-secondary'}`} title="">
                                     {zenMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                                 </button>
-                                <button onClick={handleExportChat} title="Export as Markdown" className="p-2 text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors"><Download size={14} /></button>
-                                <button onClick={() => setShowSettings(true)} title="Settings (Ctrl+,)" className="p-2 text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors"><Settings size={14} /></button>
+                                <button onClick={handleExportChat} data-tooltip="Export as Markdown" className="p-2 text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors" title=""><Download size={14} /></button>
+                                <button onClick={() => setShowSettings(true)} data-tooltip="Settings (Ctrl+,)" className="p-2 text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg transition-colors" title=""><Settings size={14} /></button>
                             </div>
                         </header>
 
@@ -707,15 +892,36 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                         <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto p-5 space-y-5">
                             {!activeSession || activeSession.messages.length === 0
                                 ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-text-secondary space-y-4 animate-in fade-in duration-700">
-                                        <div className="w-14 h-14 rounded-2xl bg-glass-bg border border-glass-border flex items-center justify-center">
-                                            <Bot size={28} className="text-accent opacity-50" />
+                                    <div className="h-full flex flex-col items-center justify-center text-text-secondary space-y-6 animate-in fade-in duration-700">
+                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/20 flex items-center justify-center shadow-lg shadow-accent/5">
+                                            <Bot size={32} className="text-accent opacity-80" />
                                         </div>
-                                        <h2 className="text-lg font-medium text-text-primary">How can I help?</h2>
-                                        <p className="text-sm max-w-sm text-center opacity-60">Ask anything about your codebase. Pin files to focus the AI on specific areas.</p>
-                                        <div className="text-[10px] text-text-secondary/40 space-y-1 mt-2 text-center">
-                                            <p>Ctrl+K — New chat &nbsp;·&nbsp; Ctrl+, — Settings</p>
-                                            <p>Ctrl+F — Search &nbsp;·&nbsp; Ctrl+/ — Focus input</p>
+                                        <div className="text-center space-y-2">
+                                            <h2 className="text-xl font-medium text-text-primary">Welcome to Atlas</h2>
+                                            <p className="text-sm max-w-sm text-center opacity-70">Your personal AI-first workspace. Ask anything about your codebase, or start with a quick action below.</p>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center justify-center gap-2 max-w-md pt-4">
+                                            {[
+                                                { icon: <RefreshCcw size={12} />, text: "Summarize recent changes", query: "Summarize the recent changes made to this workspace." },
+                                                { icon: <Search size={12} />, text: "Find security issues", query: "Can you scan this workspace for any obvious security vulnerabilities?" },
+                                                { icon: <FileText size={12} />, text: "Explain the architecture", query: "Explain the high-level architecture of this project." }
+                                            ].map((action, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => handleSubmitChat(undefined, action.query)}
+                                                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-glass-bg border border-glass-border hover:border-accent/40 hover:bg-accent/5 text-xs text-text-secondary hover:text-text-primary transition-all animate-in fade-in slide-in-from-bottom flex-shrink-0"
+                                                    style={{ animationDelay: `${150 * (i + 1)}ms` }}
+                                                >
+                                                    <span className="text-accent">{action.icon}</span>
+                                                    {action.text}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="text-[10px] text-text-secondary/40 space-y-1 mt-8 text-center bg-bg-surface px-4 py-2 rounded-lg border border-border-subtle">
+                                            <p><kbd className="font-mono bg-bg-inset px-1 py-0.5 rounded border border-border-default">Ctrl+K</kbd> Command Palette &nbsp;·&nbsp; <kbd className="font-mono bg-bg-inset px-1 py-0.5 rounded border border-border-default">Ctrl+,</kbd> Settings</p>
+                                            <p><kbd className="font-mono bg-bg-inset px-1 py-0.5 rounded border border-border-default">Ctrl+F</kbd> Search Files &nbsp;·&nbsp; <kbd className="font-mono bg-bg-inset px-1 py-0.5 rounded border border-border-default">Ctrl+J</kbd> Zen Mode</p>
                                         </div>
                                     </div>
                                 )
@@ -726,7 +932,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             <button
                                                 onClick={() => handleBranchChat(i)}
                                                 className="absolute right-[90%] top-1/2 -translate-y-1/2 p-2 text-text-secondary/0 group-hover:text-text-secondary/50 hover:!text-accent transition-all duration-200"
-                                                title="Branch chat from here"
+                                                data-tooltip="Branch chat from here"
+                                                title=""
                                             >
                                                 <GitBranch size={14} />
                                             </button>
@@ -737,8 +944,11 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             : 'bg-glass-bg border border-glass-border'}`}>
                                             <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-0">
                                                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                                    {msg.content || (isGenerating && i === activeSession.messages.length - 1 ? '▋' : '')}
+                                                    {msg.content}
                                                 </ReactMarkdown>
+                                                {(isGenerating && i === activeSession.messages.length - 1) && (
+                                                    <span className="inline-block w-1.5 h-3.5 bg-accent ml-1 animate-pulse align-middle opacity-80"></span>
+                                                )}
                                             </div>
 
                                             {/* Citations */}
@@ -817,6 +1027,23 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                     </button>
                                 </div>
 
+                                {/* Image Preview Row */}
+                                {attachedImages.length > 0 && (
+                                    <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)]">
+                                        {attachedImages.map((img, idx) => (
+                                            <div key={idx} className="relative group/img w-16 h-16 rounded-lg border border-glass-border overflow-hidden shadow-sm">
+                                                <img src={`data:image/jpeg;base64,${img}`} className="w-full h-full object-cover" />
+                                                <button
+                                                    onClick={() => handleRemoveImage(idx)}
+                                                    className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 text-white rounded-full opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                                >
+                                                    <X size={10} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
                                 <textarea
                                     id="chat-input"
                                     value={inputQuery}
@@ -829,31 +1056,31 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
                                 <div className="px-4 py-2.5 border-t border-border-subtle flex justify-between items-center bg-bg-inset rounded-b-xl">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[9px] text-text-secondary/60 font-bold tracking-widest uppercase">{workspace.name}</span>
-                                        <select
-                                            value={overrideModel}
-                                            onChange={e => setOverrideModel(e.target.value)}
-                                            className="bg-transparent border border-glass-border text-text-secondary text-[10px] rounded px-1.5 hover:text-white focus:outline-none transition-colors"
-                                            title="Multi-Model Override (Default if empty)"
+                                        <input
+                                            type="file"
+                                            ref={imageInputRef}
+                                            onChange={handleImageUpload}
+                                            accept="image/*"
+                                            multiple
+                                            className="hidden"
+                                        />
+                                        <button
+                                            onClick={() => imageInputRef.current?.click()}
+                                            disabled={isGenerating}
+                                            className="p-1.5 text-text-secondary hover:text-accent transition-colors disabled:opacity-30"
+                                            data-tooltip="Attach Images"
+                                            title=""
                                         >
-                                            <option value="">Default Model</option>
-                                            <option disabled>── Global ──</option>
-                                            <option value={model}>{model}</option>
-                                            {provider === 'ollama' && availableModels.local.length > 0 && (
-                                                <>
-                                                    <option disabled>── Local (Ollama) ──</option>
-                                                    {availableModels.local.filter(m => m !== model).map(m => <option key={m} value={m}>{m}</option>)}
-                                                </>
-                                            )}
-                                            {provider === 'openrouter' && (availableModels.orFree.length > 0 || availableModels.orPaid.length > 0) && (
-                                                <>
-                                                    <option disabled>── OpenRouter (Free) ──</option>
-                                                    {availableModels.orFree.filter(m => m !== model).map(m => <option key={m} value={m}>{m.split('/').pop()}</option>)}
-                                                    <option disabled>── OpenRouter (Paid) ──</option>
-                                                    {availableModels.orPaid.filter(m => m !== model).map(m => <option key={m} value={m}>{m.split('/').pop()}</option>)}
-                                                </>
-                                            )}
-                                        </select>
+                                            <ImageIcon size={14} />
+                                        </button>
+                                        <span className="text-[9px] text-text-secondary/60 font-bold tracking-widest uppercase">{workspace.name}</span>
+                                        <ModelSelector
+                                            value={overrideModel}
+                                            onChange={setOverrideModel}
+                                            availableModels={availableModels}
+                                            defaultModel={model}
+                                            provider={provider}
+                                        />
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {isGenerating && (
@@ -861,6 +1088,9 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                                 <StopCircle size={12} />Stop
                                             </button>
                                         )}
+                                        <button onClick={() => handleTimeline(24)} disabled={isGenerating} className={`flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-200 ${isGenerating ? 'bg-bg-surface-active text-text-muted cursor-not-allowed' : 'bg-green-500 text-bg-main hover:opacity-90 active:scale-95 shadow-md'}`}>
+                                            {isGenerating ? <><Loader2 size={12} className="animate-spin" />Processing</> : <>Timeline<Send size={12} /></>}
+                                        </button>
                                         <button onClick={() => handleSubmitChat()} disabled={!inputQuery.trim() || isGenerating}
                                             className={`flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-200 ${!inputQuery.trim() || isGenerating ? 'bg-bg-surface-active text-text-muted cursor-not-allowed' : 'bg-text-primary text-bg-main hover:opacity-90 active:scale-95 shadow-md'}`}>
                                             {isGenerating ? <><Loader2 size={12} className="animate-spin" />Thinking</> : <>Send<Send size={12} /></>}

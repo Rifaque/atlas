@@ -85,6 +85,16 @@ export interface ChatRequest {
     history?: { role: string; content: string }[];
     /** The model used for indexing — used for query embedding to match vector dimensions */
     embeddingModel?: string;
+    /** Active persona ID (e.g. "architect", "security-auditor") */
+    persona?: string;
+    /** Web search: enrich context with web results */
+    webSearchEnabled?: boolean;
+    /** Web search: API key for the provider */
+    webSearchApiKey?: string;
+    /** Web search: provider name ("tavily" or "serper") */
+    webSearchProvider?: string;
+    /** Vision: Attach images as base64 encoded strings */
+    images?: string[];
 }
 
 /** Start a chat and return the event ID + unlisten function. */
@@ -152,6 +162,42 @@ export async function fetchFileContent(filePath: string): Promise<string> {
         return '';
     }
 }
+
+// ─── Secret Shield ───────────────────────────────────────────────────────────
+
+export interface SecretMatch {
+    kind: string;
+    preview: string;
+    offset: number;
+}
+
+export async function scanSecrets(text: string): Promise<SecretMatch[]> {
+    try {
+        return await invoke<SecretMatch[]>('scan_secrets', { text });
+    } catch {
+        return [];
+    }
+}
+
+// ─── Timeline Intelligence ────────────────────────────────────────────────────────
+
+export interface TimelineEvent {
+    file_path: string;
+    relative_path: string;
+    mtime: number;
+    change_type: string;
+}
+
+/** Fetch timeline events for the workspace folder within the past `hours` hours. */
+export async function fetchTimeline(folderPath: string, hours: number): Promise<TimelineEvent[]> {
+    try {
+        return await invoke<TimelineEvent[]>('get_timeline', { folderPath, hours });
+    } catch {
+        return [];
+    }
+}
+
+
 
 // ─── Legacy compatibility ────────────────────────────────────────────────────
 // These map to the old function names used by some components

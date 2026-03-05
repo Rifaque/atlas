@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.2.2"
+version = "0.3.0"
 description = "Atlas Desktop"
 authors = ["Rifaque Ahmed"]
 license = "MIT"
@@ -29,7 +29,7 @@ tauri-plugin-os = "2.3.2"
 tauri-plugin-shell = "2"
 tokio = { version = "1", features = ["time", "fs", "io-util", "sync", "macros", "rt-multi-thread"] }
 
-# Phase 2: Sidecar elimination
+# Project dependencies
 reqwest = { version = "0.12", features = ["json", "stream"] }
 ignore = "0.4"                    # .gitignore-aware directory walking
 walkdir = "2"                     # recursive directory traversal
@@ -45,3 +45,8 @@ async-recursion = "1"             # async recursive functions
 dirs = "5"                        # cross-platform home directory
 regex = "1"                       # pattern matching (greetings etc.)
 pdf-extract = "0.10.0"
+tauri-plugin-updater = "2"         # in-app auto-update
+tauri-plugin-process = "2"         # relaunch after update
+base64 = "0.22.1"                  # encode images for vision models
+lru = "0.16.3"
+tauri-plugin-global-shortcut = "2.3.1"

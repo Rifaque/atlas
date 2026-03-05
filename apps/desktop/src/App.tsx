@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LandingScreen } from './components/LandingScreen';
 import { WorkspaceLayout } from './components/WorkspaceLayout';
+import { UpdateChecker } from './components/UpdateChecker';
 import { ToastProvider } from './lib/toast';
 import { getActiveWorkspace, type Workspace } from './lib/workspaces';
 import { initTheme } from './lib/theme';
@@ -25,7 +26,7 @@ function StartupSplash() {
   );
 }
 
-// main app component — no sidecar health check needed, Rust core is embedded
+// Main app component
 function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [checked, setChecked] = useState(false);
@@ -48,6 +49,7 @@ function App() {
         />
         : <LandingScreen onIndexed={(ws) => setActiveWorkspace(ws)} />
       }
+      <UpdateChecker />
     </ToastProvider>
   );
 }

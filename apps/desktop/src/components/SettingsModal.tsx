@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-    Settings, X, AlertTriangle, RefreshCw, Info,
+    Settings, X, AlertTriangle, RefreshCw,
     Eye, EyeOff, Loader2, ChevronDown, ChevronRight,
-    Cpu, ExternalLink, CheckCircle2, Zap,
+    Cpu, CheckCircle2, Zap, Globe,
 } from 'lucide-react';
 import { fetchOpenRouterModels as fetchOrModels } from '../lib/api';
 
@@ -16,6 +16,9 @@ export interface AtlasSettings {
     backendUrl: string;
     contextSlots: number;
     systemPrompt: string;
+    webSearchEnabled: boolean;
+    webSearchProvider: 'tavily' | 'serper';
+    webSearchApiKey: string;
 }
 
 export const DEFAULT_SETTINGS: AtlasSettings = {
@@ -26,6 +29,9 @@ export const DEFAULT_SETTINGS: AtlasSettings = {
     backendUrl: 'http://127.0.0.1:47291',
     contextSlots: 8,
     systemPrompt: '',
+    webSearchEnabled: false,
+    webSearchProvider: 'tavily',
+    webSearchApiKey: '',
 };
 
 export function loadSettings(): AtlasSettings {
@@ -232,9 +238,12 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onClose }: SettingsModalProps) {
+    const [activeTab, setActiveTab] = useState<'general' | 'models' | 'system'>('general');
     const [draft, setDraft] = useState<AtlasSettings>({ ...settings });
     const [showKey, setShowKey] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
+    const [optimizing, setOptimizing] = useState(false);
+
     const set = <K extends keyof AtlasSettings>(k: K, v: AtlasSettings[K]) =>
         setDraft(d => ({ ...d, [k]: v }));
 
@@ -273,250 +282,287 @@ export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onCl
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="settings-title"
-                className="bg-[#0f1520] border border-glass-border rounded-2xl shadow-2xl w-full max-w-[500px] max-h-[90vh] overflow-y-auto p-6 space-y-5"
+                className="bg-[#0f1520] border border-glass-border rounded-2xl shadow-2xl w-full max-w-[550px] max-h-[90vh] flex flex-col overflow-hidden"
                 onClick={e => e.stopPropagation()}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div id="settings-title" className="flex items-center gap-2 font-semibold text-white">
-                        <Settings size={17} className="text-accent" aria-hidden="true" />
-                        Settings
+                {/* Header & Tabs */}
+                <div className="border-b border-glass-border shrink-0 px-6 pt-5 pb-0">
+                    <div className="flex items-center justify-between mb-4">
+                        <div id="settings-title" className="flex items-center gap-2 font-semibold text-white">
+                            <Settings size={17} className="text-accent" aria-hidden="true" />
+                            Settings
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-1 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus:outline-none"
+                        >
+                            <X size={16} aria-hidden="true" />
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        aria-label="Close settings"
-                        className="p-1 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/60"
-                    >
-                        <X size={16} aria-hidden="true" />
-                    </button>
+
+                    <div className="flex gap-4">
+                        {(['general', 'models', 'system'] as const).map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`pb-3 text-sm font-medium capitalize border-b-2 transition-colors focus:outline-none ${activeTab === tab
+                                    ? 'border-accent text-white'
+                                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                                    }`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                <div className="space-y-5 text-sm">
+                {/* Tab Content */}
+                <div className="p-6 overflow-y-auto space-y-5 text-sm flex-1">
 
-                    {/* ── Provider selector ─────────────────────────────── */}
-                    <div className="space-y-2">
-                        <label className="label-sm flex items-center gap-2">
-                            <Cpu size={11} aria-hidden="true" />
-                            LLM Provider
-                        </label>
-                        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="LLM provider selection">
-                            {(['ollama', 'openrouter'] as LLMProvider[]).map(p => (
-                                <button
-                                    key={p}
-                                    role="radio"
-                                    aria-checked={draft.provider === p}
-                                    onClick={() => set('provider', p)}
-                                    className={`py-2.5 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-accent/60 ${draft.provider === p
-                                        ? 'border-accent/60 bg-accent/10 text-accent'
-                                        : 'border-glass-border text-text-secondary hover:border-accent/30 hover:text-text-primary'
-                                        }`}
-                                >
-                                    {p === 'ollama' ? '🦙 Ollama (Local)' : '🌐 OpenRouter'}
-                                </button>
-                            ))}
-                        </div>
-                        {!isOllama && (
-                            <p className="text-[10px] text-amber-400/70 flex items-start gap-1 mt-1">
-                                <AlertTriangle size={10} className="shrink-0 mt-0.5" aria-hidden="true" />
-                                OpenRouter sends data to external servers. Your API key and queries leave your machine.{' '}
-                                <a
-                                    href="https://openrouter.ai/keys"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline hover:text-amber-300 inline-flex items-center gap-0.5"
-                                >
-                                    Get a key <ExternalLink size={9} />
-                                </a>
-                            </p>
-                        )}
-                    </div>
-
-                    {/* ── OpenRouter API Key ────────────────────────────── */}
-                    {!isOllama && (
-                        <div>
-                            <label htmlFor="setting-api-key" className="label-sm">
-                                OpenRouter API Key
-                            </label>
-                            <div className="relative">
+                    {/* ── GENERAL TAB ─────────────────────────────────── */}
+                    {activeTab === 'general' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {/* Context Slots */}
+                            <div>
+                                <label className="label-sm">
+                                    Knowledge Context Scope — <span className="text-accent font-bold" aria-live="polite">{draft.contextSlots}</span>
+                                </label>
                                 <input
-                                    id="setting-api-key"
-                                    type={showKey ? 'text' : 'password'}
-                                    value={draft.openRouterApiKey}
-                                    onChange={e => set('openRouterApiKey', e.target.value)}
-                                    placeholder="sk-or-v1-…"
-                                    className="input-field pr-9 font-mono text-xs"
-                                    autoComplete="off"
-                                    aria-describedby="api-key-hint"
-                                    spellCheck={false}
+                                    type="range"
+                                    min={4} max={16} step={1}
+                                    value={draft.contextSlots}
+                                    onChange={e => set('contextSlots', parseInt(e.target.value))}
+                                    className="w-full accent-[#5FA8FF] mt-1"
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowKey(v => !v)}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white transition-colors focus:outline-none"
-                                    aria-label={showKey ? 'Hide API key' : 'Show API key'}
-                                >
-                                    {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
+                                <div className="flex justify-between text-[10px] text-text-secondary mt-1">
+                                    <span>Faster generation</span><span>Maximum context</span>
+                                </div>
                             </div>
-                            <p id="api-key-hint" className="text-[10px] text-text-secondary/50 mt-1">
-                                Stored only in your browser's localStorage — never sent to any Atlas server.
-                                Free-tier models work without a key.
-                            </p>
+
+                            {/* System Prompt */}
+                            <div>
+                                <label className="label-sm">Custom System Prompt</label>
+                                <textarea
+                                    value={draft.systemPrompt}
+                                    onChange={e => set('systemPrompt', e.target.value)}
+                                    rows={3}
+                                    placeholder="Always respond in TypeScript. Prefer concise answers."
+                                    className="input-field resize-none mt-1"
+                                />
+                                <p className="text-[10px] text-text-secondary/50 mt-1">
+                                    Prepended to every prompt before your question.
+                                </p>
+                            </div>
+
+                            {/* Web Search */}
+                            <div className="space-y-3 pt-3 border-t border-glass-border">
+                                <div className="flex items-center justify-between">
+                                    <label className="label-sm flex items-center gap-1.5 focus:outline-none">
+                                        <Globe size={13} className="text-accent" />
+                                        Web Search Integration
+                                    </label>
+                                    <button
+                                        onClick={() => set('webSearchEnabled', !draft.webSearchEnabled)}
+                                        className={`relative w-9 h-5 rounded-full transition-colors focus:ring-2 focus:ring-accent/50 ${draft.webSearchEnabled ? 'bg-accent' : 'bg-glass-border'}`}
+                                    >
+                                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${draft.webSearchEnabled ? 'translate-x-4' : ''}`} />
+                                    </button>
+                                </div>
+
+                                {draft.webSearchEnabled && (
+                                    <div className="space-y-3 bg-black/20 p-3 rounded-lg border border-glass-border">
+                                        <div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {(['tavily', 'serper'] as const).map(p => (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => set('webSearchProvider', p)}
+                                                        className={`py-2 px-2 rounded border text-xs font-medium transition-all ${draft.webSearchProvider === p
+                                                            ? 'border-accent/60 bg-accent/10 text-accent'
+                                                            : 'border-glass-border text-text-secondary hover:border-accent/30'
+                                                            }`}
+                                                    >
+                                                        {p === 'tavily' ? '🔍 Tavily' : '🌐 Serper'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <input
+                                                type="password"
+                                                value={draft.webSearchApiKey}
+                                                onChange={e => set('webSearchApiKey', e.target.value)}
+                                                placeholder={draft.webSearchProvider === 'tavily' ? 'tvly-...' : 'serper key...'}
+                                                className="input-field font-mono text-xs"
+                                                spellCheck={false}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
-                    {/* ── Model selection ───────────────────────────────── */}
-                    <div>
-                        <label htmlFor="setting-model" className="label-sm flex items-center gap-1.5">
-                            <Cpu size={11} aria-hidden="true" />
-                            {isOllama ? 'Ollama Model' : 'OpenRouter Model'}
-                        </label>
+                    {/* ── MODELS TAB ─────────────────────────────────── */}
+                    {activeTab === 'models' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="grid grid-cols-2 gap-2">
+                                {(['ollama', 'openrouter'] as LLMProvider[]).map(p => (
+                                    <button
+                                        key={p}
+                                        onClick={() => set('provider', p)}
+                                        className={`py-3 px-3 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition-all ${draft.provider === p
+                                            ? 'border-accent/60 bg-accent/10 text-accent shadow-[0_0_15px_rgba(95,168,255,0.1)]'
+                                            : 'border-glass-border text-text-secondary hover:border-accent/30 hover:text-white'
+                                            }`}
+                                    >
+                                        {p === 'ollama' ? '🦙 Ollama' : '🌐 OpenRouter'}
+                                    </button>
+                                ))}
+                            </div>
 
-                        {isOllama ? (
-                            <>
-                                <input
-                                    id="setting-model"
-                                    type="text"
-                                    value={draft.model}
-                                    onChange={e => set('model', e.target.value)}
-                                    className="input-field"
-                                    placeholder="llama3.2, mistral, deepseek-coder…"
-                                    aria-describedby={showOllamaModelWarning ? 'model-warning' : 'model-hint'}
-                                />
-                                {showOllamaModelWarning ? (
-                                    <div id="model-warning" role="alert" className="flex items-start gap-1.5 mt-1.5 text-[11px] text-amber-400/80">
-                                        <AlertTriangle size={11} className="shrink-0 mt-0.5" aria-hidden="true" />
-                                        <span>
-                                            <strong>{draft.model}</strong> is not a recognised model. Ensure it's installed:{' '}
-                                            <code className="bg-white/10 px-1 rounded font-mono">ollama pull {draft.model}</code>
-                                        </span>
+                            {/* Provider configs */}
+                            <div className="bg-black/20 p-4 rounded-xl border border-glass-border">
+                                {isOllama ? (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="label-sm">Local Host URL</label>
+                                            <input
+                                                type="url"
+                                                value={draft.ollamaHost}
+                                                onChange={e => set('ollamaHost', e.target.value)}
+                                                className="input-field mt-1"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="label-sm">Model Name</label>
+                                            <input
+                                                type="text"
+                                                value={draft.model}
+                                                onChange={e => set('model', e.target.value)}
+                                                className="input-field mt-1 font-mono text-xs"
+                                                placeholder="llama3.2:latest"
+                                            />
+                                        </div>
+                                        {showOllamaModelWarning && (
+                                            <div className="flex gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                                                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                                <span className="text-xs">Ensure this model is installed via <code className="bg-black/30 px-1 rounded">ollama pull {draft.model}</code></span>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
-                                    <p id="model-hint" className="text-[10px] text-text-secondary/50 mt-1">
-                                        Must be installed locally via <code className="font-mono bg-white/10 px-1 rounded">ollama pull &lt;model&gt;</code>
-                                    </p>
-                                )}
-                            </>
-                        ) : (
-                            <>
-                                {/* Show selected model name as a read-only badge */}
-                                {draft.model && (
-                                    <div className="mb-2 flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-accent/30 bg-accent/5 text-accent">
-                                        <CheckCircle2 size={12} aria-hidden="true" />
-                                        <span className="font-mono truncate">{draft.model}</span>
-                                        <button
-                                            onClick={() => set('model', '')}
-                                            className="ml-auto shrink-0 text-text-secondary hover:text-red-400 transition-colors"
-                                            aria-label="Clear selected model"
-                                        >
-                                            <X size={11} />
-                                        </button>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="label-sm">API Key</label>
+                                            <div className="relative mt-1">
+                                                <input
+                                                    type={showKey ? 'text' : 'password'}
+                                                    value={draft.openRouterApiKey}
+                                                    onChange={e => set('openRouterApiKey', e.target.value)}
+                                                    placeholder="sk-or-v1-…"
+                                                    className="input-field pr-9 font-mono text-xs"
+                                                />
+                                                <button
+                                                    onClick={() => setShowKey(!showKey)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-white"
+                                                >
+                                                    {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="label-sm mb-2 block">Model Selection</label>
+                                            {draft.model && (
+                                                <div className="mb-3 flex items-center gap-2 text-xs px-3 py-2 rounded border border-accent/20 bg-accent/5">
+                                                    <CheckCircle2 size={12} className="text-accent" />
+                                                    <span className="font-mono text-accent">{draft.model}</span>
+                                                </div>
+                                            )}
+                                            <div className="bg-[#0b0f17] border border-glass-border rounded p-2 max-h-[250px] overflow-y-auto">
+                                                <OpenRouterModelBrowser
+                                                    apiKey={draft.openRouterApiKey}
+                                                    selectedModel={draft.model}
+                                                    onSelect={id => set('model', id)}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
-                                <OpenRouterModelBrowser
-                                    apiKey={draft.openRouterApiKey}
-                                    selectedModel={draft.model}
-                                    onSelect={id => set('model', id)}
-                                />
-                            </>
-                        )}
-                    </div>
-
-                    {/* ── Connection settings ───────────────────────────── */}
-                    {isOllama && (
-                        <div>
-                            <label htmlFor="setting-ollama-host" className="label-sm">Ollama Host</label>
-                            <input
-                                id="setting-ollama-host"
-                                type="url"
-                                value={draft.ollamaHost}
-                                onChange={e => set('ollamaHost', e.target.value)}
-                                className="input-field"
-                                aria-describedby="ollama-host-hint"
-                            />
-                            <p id="ollama-host-hint" className="text-[10px] text-text-secondary/50 mt-1">
-                                Default: http://127.0.0.1:11434
-                            </p>
+                            </div>
                         </div>
                     )}
-                    {/* backendUrl removed — Rust core is embedded */}
 
-                    {/* ── Context slots ─────────────────────────────────── */}
-                    <div>
-                        <label htmlFor="setting-context-slots" className="label-sm">
-                            RAG Context Slots —{' '}
-                            <span className="text-accent font-bold" aria-live="polite">{draft.contextSlots}</span>
-                        </label>
-                        <input
-                            id="setting-context-slots"
-                            type="range"
-                            min={4}
-                            max={16}
-                            step={1}
-                            value={draft.contextSlots}
-                            onChange={e => set('contextSlots', parseInt(e.target.value))}
-                            className="w-full accent-[#5FA8FF] mt-1"
-                            aria-valuemin={4}
-                            aria-valuemax={16}
-                            aria-valuenow={draft.contextSlots}
-                        />
-                        <div className="flex justify-between text-[10px] text-text-secondary" aria-hidden="true">
-                            <span>4 (faster)</span><span>16 (more context)</span>
-                        </div>
-                    </div>
+                    {/* ── SYSTEM TAB ─────────────────────────────────── */}
+                    {activeTab === 'system' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
-                    {/* ── System prompt ─────────────────────────────────── */}
-                    <div>
-                        <label htmlFor="setting-system-prompt" className="label-sm">Custom System Prompt</label>
-                        <textarea
-                            id="setting-system-prompt"
-                            value={draft.systemPrompt}
-                            onChange={e => set('systemPrompt', e.target.value)}
-                            rows={3}
-                            placeholder="Always respond in TypeScript. Prefer concise answers."
-                            className="input-field resize-none"
-                        />
-                        <p className="text-[10px] text-text-secondary/50 mt-1">
-                            Prepended to every RAG prompt before your question.
-                        </p>
-                    </div>
-
-                    {/* ── Index stats & re-index ────────────────────────── */}
-                    <div className="pt-2 border-t border-glass-border">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <div className="text-xs font-medium text-text-secondary flex items-center gap-1">
-                                    <Info size={11} aria-hidden="true" />Indexed Chunks
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-black/30 rounded-xl p-4 border border-glass-border flex flex-col items-center justify-center text-center">
+                                    <div className="text-text-secondary text-xs uppercase tracking-widest font-bold mb-1">Index Size</div>
+                                    <div className="text-3xl font-light text-white">{indexedChunks?.toLocaleString() ?? '0'}</div>
+                                    <div className="text-[10px] text-accent mt-1 bg-accent/10 px-2 py-0.5 rounded-full border border-accent/20">Vector Chunks</div>
                                 </div>
-                                <div className="text-lg font-bold text-accent mt-0.5">
-                                    {indexedChunks?.toLocaleString() ?? '—'}
+                                <div className="bg-black/30 rounded-xl p-4 border border-glass-border flex flex-col items-center justify-center text-center">
+                                    <div className="text-text-secondary text-xs uppercase tracking-widest font-bold mb-1">Database</div>
+                                    <div className="text-xl font-light text-green-400">LanceDB</div>
+                                    <div className="text-[10px] text-green-400/80 mt-1">Local embedded</div>
                                 </div>
                             </div>
-                            <button
-                                onClick={onReindex}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent/60"
-                                aria-label="Re-index the current workspace"
-                            >
-                                <RefreshCw size={11} aria-hidden="true" />
-                                Re-index Workspace
-                            </button>
+
+                            <div className="space-y-2">
+                                <button
+                                    onClick={onReindex}
+                                    className="w-full flex items-center justify-between p-4 rounded-xl border border-glass-border hover:border-accent/40 hover:bg-white/5 transition-all group"
+                                >
+                                    <div className="text-left">
+                                        <div className="font-semibold text-white flex items-center gap-2">
+                                            <RefreshCw size={14} className="group-hover:text-accent transition-colors" />
+                                            Re-index Workspace
+                                        </div>
+                                        <div className="text-xs text-text-secondary mt-1">Force a full re-scan of files. Useful if things get out of sync.</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setOptimizing(true);
+                                        setTimeout(() => setOptimizing(false), 2000); // Mock optimization trigger for now
+                                    }}
+                                    disabled={optimizing}
+                                    className="w-full flex items-center justify-between p-4 rounded-xl border border-glass-border hover:border-amber-400/40 hover:bg-amber-400/5 transition-all group disabled:opacity-50"
+                                >
+                                    <div className="text-left">
+                                        <div className="font-semibold text-white flex items-center gap-2">
+                                            {optimizing ? (
+                                                <Loader2 size={14} className="animate-spin text-amber-400" />
+                                            ) : (
+                                                <Zap size={14} className="group-hover:text-amber-400 transition-colors" />
+                                            )}
+                                            Optimize & Compress Vectors
+                                        </div>
+                                        <div className="text-xs text-text-secondary mt-1">Compress vectors (IVF-PQ) to reduce RAM usage and improve search speed.</div>
+                                    </div>
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
+
                 </div>
 
                 {/* Footer actions */}
-                <div className="flex gap-3 pt-2">
-                    <button
-                        onClick={() => { onSave(draft); onClose(); }}
-                        className="flex-1 bg-white text-black font-bold text-sm py-2 rounded-lg hover:bg-zinc-200 transition-colors focus:outline-none focus:ring-2 focus:ring-white/60"
-                    >
-                        Save Changes
-                    </button>
+                <div className="flex gap-3 px-6 pb-6 pt-0 mt-auto shrink-0 border-t border-glass-border pt-4">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 rounded-lg border border-glass-border text-text-secondary hover:text-white text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-white/20"
+                        className="px-6 py-2.5 rounded-lg border border-glass-border text-text-secondary hover:text-white text-sm font-medium transition-colors focus:outline-none"
                     >
                         Cancel
+                    </button>
+                    <button
+                        onClick={() => { onSave(draft); onClose(); }}
+                        className="flex-1 bg-accent text-white font-bold text-sm py-2.5 rounded-lg hover:bg-accent/90 shadow-[0_0_15px_rgba(95,168,255,0.3)] transition-all focus:outline-none"
+                    >
+                        Apply Settings
                     </button>
                 </div>
             </div>
