@@ -29,6 +29,12 @@ pub struct FileData {
     pub content: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileMetadata {
+    pub file_path: String,
+    pub mtime: f64,
+}
+
 /// A lightweight DirectoryEntry for file tree display
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileNode {
@@ -158,6 +164,67 @@ pub async fn crawl_directory(dir: &str) -> Result<Vec<FileData>, String> {
                             // Binary file or encoding error — skip
                         }
                     }
+                }
+            }
+        }
+    }
+
+    Ok(files)
+}
+
+/// Crawl a directory and return metadata for all indexable files (no content reading)
+pub async fn crawl_metadata(dir: &str) -> Result<Vec<FileMetadata>, String> {
+    let root = PathBuf::from(dir);
+    if !root.is_dir() {
+        return Err(format!("Not a directory: {}", dir));
+    }
+
+    let gitignore = build_ignore(&root);
+    let mut files = Vec::new();
+    let mut stack: Vec<PathBuf> = vec![root.clone()];
+
+    while let Some(current) = stack.pop() {
+        let mut entries = match fs::read_dir(&current).await {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+
+            if name.starts_with('.') {
+                continue;
+            }
+
+            let rel_path = path.strip_prefix(&root).unwrap_or(&path);
+            let rel_str = rel_path.to_string_lossy().replace('\\', "/");
+
+            if entry.file_type().await.map(|t| t.is_dir()).unwrap_or(false) {
+                let dir_rel = format!("{}/", rel_str);
+                if gitignore.matched_path_or_any_parents(&dir_rel, true).is_ignore() {
+                    continue;
+                }
+                stack.push(path);
+            } else if entry.file_type().await.map(|t| t.is_file()).unwrap_or(false) {
+                if gitignore.matched_path_or_any_parents(&rel_str, false).is_ignore() {
+                    continue;
+                }
+                if !is_allowed(&path) {
+                    continue;
+                }
+
+                if let Ok(meta) = fs::metadata(&path).await {
+                    let mtime = meta.modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs_f64() * 1000.0)
+                        .unwrap_or(0.0);
+
+                    files.push(FileMetadata {
+                        file_path: path.to_string_lossy().to_string(),
+                        mtime,
+                    });
                 }
             }
         }

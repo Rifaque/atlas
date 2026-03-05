@@ -35,9 +35,34 @@ This document outlines the roadmap for the V1 release of Atlas. The focus shifts
 - **Voice Mode**: Local Whisper STT + TTS for spoken interaction
 - **Secret Shield**: PII/API key detection for cloud model requests
 
-## Phase 4: Performance & Polish
+## Phase 5: Deep OS & Workflow Integration
 
-- **Retrieval Optimization**: Concurrent embedding batches, query caching
-- **Vector Compression**: Smaller disk footprint with quantized embeddings
-- **Unified Settings 2.0**: Searchable, categorized settings with advanced AI controls
-- **System Status Dashboard**: Ollama version, disk usage, GPU info
+- **Global Quick Summon** — OS-level shortcut to open Atlas from anywhere (Alt+Space).
+- **Live File Watching** — Real-time auto-indexing using native OS file notifications.
+- **Native Git Awareness** — Understanding branches, history, and active diffs for RAG context.
+- **Editor Handoff** — Deep links to open local files/snippets in your preferred IDE.
+
+## Phase 6: Agentic Capabilities & Actions
+
+- **Tool Calling Engine** — Ability to safely execute bounded shell commands (tests, logs).
+- **Workspace Code Application** — Proposing and applying multi-file diffs with user approval.
+- **Multi-step Reasoning UI** — Support for visualized Chain-of-Thought thinking processes.
+- **Semantic Code Parsing** — Tree-sitter integration for structural indexing (functions vs text).
+
+## Phase 7: Knowledge Graph & Context Mastery
+
+- **GraphRAG** — Semantic knowledge graph extraction for complex relationship discovery.
+- **Architecture Visualization** — Interactive node-graph UI to navigate project structure.
+- **Cross-Workspace Context** — Ability to query across multiple projects simultaneously.
+
+## Phase 8: v1.0.0 "The Balanced Release"
+
+- **Interactive Onboarding** — Polished setup wizard and tutorial.
+- **Accessibility & i18n** — Full keyboard navigation, screen reader support, and localization.
+- **Production CI/CD** — Signed, stable installers across Windows, macOS, and Linux.
+
+---
+
+## Phase 9: Desktop Widgets & "Always-on" Interface
+- **Menu Bar / System Tray Mode**: Quick access to chat and status from the system bar.
+- **Desktop Companion Widgets**: Floating project status, recent changes, and AI "mini-chat" overlays.

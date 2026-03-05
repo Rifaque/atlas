@@ -16,6 +16,7 @@ pub struct AppState {
     pub store: AtlasVectorStore,
     pub jobs: Mutex<HashMap<String, IndexingJob>>,
     pub query_cache: Mutex<lru::LruCache<String, Vec<f32>>>,
+    pub watchers: Mutex<HashMap<String, Arc<std::sync::atomic::AtomicBool>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +36,7 @@ pub struct TimelineEvent {
     pub relative_path: String,
     pub mtime: f64,
     pub change_type: String, // "modified" (can be extended to "created" if we track it)
+    pub current_content: Option<String>,
 }
 
 // ─── Status & Models ─────────────────────────────────────────────────────────
@@ -69,6 +71,15 @@ pub async fn start_indexing(
     folder_path: String,
     model: String,
 ) -> Result<String, String> {
+    start_indexing_internal(app, state.inner().clone(), folder_path, model).await
+}
+
+pub async fn start_indexing_internal(
+    app: AppHandle,
+    state: Arc<AppState>,
+    folder_path: String,
+    model: String,
+) -> Result<String, String> {
     let job_id = Uuid::new_v4().to_string();
 
     let job = IndexingJob {
@@ -86,7 +97,7 @@ pub async fn start_indexing(
         jobs.insert(job_id.clone(), job);
     }
 
-    let state = state.inner().clone();
+    let state = state.clone();
     let jid = job_id.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -127,7 +138,11 @@ async fn run_indexing_job(
         start_line: i32,
         end_line: i32,
         chunk_index: i32,
+        kind: Option<String>,
+        name: Option<String>,
     }
+
+    let mut parser = crate::parser::CodeParser::new();
 
     let mut chunks_to_process = Vec::new();
 
@@ -150,30 +165,41 @@ async fn run_indexing_job(
         // Delete old chunks for this file
         state.store.delete_by_filepath(&file.file_path).await?;
 
-        // Simple line-based chunking: 50 lines per chunk, 10 line overlap
-        let lines: Vec<&str> = file.content.lines().collect();
-        let chunk_size = 50;
-        let overlap = 10;
-        let mut chunks: Vec<(String, i32, i32)> = Vec::new(); // (text, start_line, end_line)
-
-        let mut start = 0;
-        while start < lines.len() {
-            let end = (start + chunk_size).min(lines.len());
-            let chunk_text: String = lines[start..end].join("\n");
-            if !chunk_text.trim().is_empty() {
-                chunks.push((chunk_text, start as i32, end as i32));
+        // Try semantic chunking
+        let semantic_chunks = parser.parse_semantic_chunks(&file.file_path, &file.content).await;
+        
+        let mut chunks: Vec<(String, i32, i32, Option<String>, Option<String>)> = Vec::new();
+        
+        if !semantic_chunks.is_empty() {
+            for sc in semantic_chunks {
+                chunks.push((sc.text, sc.start_line as i32, sc.end_line as i32, Some(sc.kind), sc.name));
             }
-            start += chunk_size - overlap;
+        } else {
+            // Simple line-based chunking fallback
+            let lines: Vec<&str> = file.content.lines().collect();
+            let chunk_size = 50;
+            let overlap = 10;
+            let mut start = 0;
+            while start < lines.len() {
+                let end = (start + chunk_size).min(lines.len());
+                let chunk_text: String = lines[start..end].join("\n");
+                if !chunk_text.trim().is_empty() {
+                    chunks.push((chunk_text, start as i32, end as i32, None, None));
+                }
+                start += chunk_size - overlap;
+            }
         }
 
         let file_chunk_count = chunks.len() as u32;
-        for (i, (text, start_line, end_line)) in chunks.into_iter().enumerate() {
+        for (i, (text, start_line, end_line, kind, name)) in chunks.into_iter().enumerate() {
             chunks_to_process.push(ChunkData {
                 file_path: file.file_path.clone(),
                 text,
                 start_line,
                 end_line,
                 chunk_index: i as i32,
+                kind,
+                name,
             });
         }
 
@@ -257,6 +283,8 @@ async fn run_indexing_job(
                     parent_text: None,
                     parent_line_range_start: None,
                     parent_line_range_end: None,
+                    kind: c.kind.clone(),
+                    name: c.name.clone(),
                 })
                 .collect();
 
@@ -311,7 +339,7 @@ async fn run_indexing_job(
 
 #[tauri::command]
 pub async fn get_index_stats(state: State<'_, Arc<AppState>>) -> Result<serde_json::Value, String> {
-    let count = state.store.count().await.unwrap_or(0);
+    let count = state.store.count().await.map_err(|e| format!("Database count failed: {}", e))?;
     Ok(serde_json::json!({ "count": count }))
 }
 
@@ -359,7 +387,10 @@ const ATLAS_GREETINGS: &[&str] = &[
 fn is_greeting(text: &str) -> bool {
     regex::Regex::new(GREETING_RE)
         .map(|re| re.is_match(text.trim()))
-        .unwrap_or(false)
+        .unwrap_or_else(|e| {
+            log::error!("Invalid greeting regex: {}", e);
+            false
+        })
 }
 
 #[tauri::command]
@@ -373,7 +404,8 @@ pub async fn start_chat(
 
     // Greeting shortcut
     if is_greeting(&request.query) && history.is_empty() {
-        let greeting = ATLAS_GREETINGS[rand_index(ATLAS_GREETINGS.len())];
+        let idx = rand_index(ATLAS_GREETINGS.len());
+        let greeting = ATLAS_GREETINGS[idx];
         let _ = app.emit(
             &event_id,
             serde_json::json!({ "type": "chunk", "data": { "chunk": greeting } }),
@@ -417,9 +449,16 @@ async fn run_chat(
     // Falls back to the chat model if not provided.
     let embed_model = request.embedding_model.as_deref().unwrap_or(&request.model);
 
+    // Truncate query for embeddings if it's exceptionally large (like a timeline report)
+    let embedding_input = if request.query.len() > 6000 {
+        request.query[..6000].to_string()
+    } else {
+        request.query.clone()
+    };
+
     // Generate query embedding for retrieval
     let query_embeddings = embeddings::generate_embeddings(
-        &[request.query.clone()],
+        &[embedding_input],
         embed_model,
         &host,
     )
@@ -430,8 +469,8 @@ async fn run_chat(
         .next()
         .ok_or("No embedding generated")?;
 
-    // Similarity search
-    let search_results = state.store.similarity_search(query_embedding, 20).await?;
+    // Hybrid search (Vector + Exact Keyword)
+    let search_results = state.store.hybrid_search(query_embedding, &request.query, 20).await?;
 
     // Extract context chunks and citations
     let documents = search_results
@@ -496,35 +535,27 @@ async fn run_chat(
 
     let mut messages: Vec<serde_json::Value> = Vec::new();
 
-    let system_content = format!(
-        "You are Atlas — a friendly, knowledgeable AI assistant who helps users understand their codebase and projects. You're conversational and warm, but always precise and accurate.
+    let mut system_content = String::with_capacity(5000 + pinned_context.len() + context.len());
+    system_content.push_str("You are Atlas - a friendly, knowledgeable AI assistant who helps users understand their codebase and projects. You're conversational and warm, but always precise and accurate.\n\nGuidelines:\n- Be helpful and engaging. Use a natural, conversational tone - like a smart colleague who genuinely enjoys explaining things.\n- Use the provided context to ground your answers. Prefer PINNED CONTEXT when available.\n- If the context doesn't contain the answer, say so honestly. Never make things up.\n- Format code blocks with proper syntax highlighting. Use headings and bullet points for clarity.\n- Keep responses focused but don't be terse - provide enough detail to be genuinely helpful.\n\n");
+    
+    if !sys_block.is_empty() {
+        system_content.push_str(&sys_block);
+        system_content.push_str("\n\n");
+    }
 
-Guidelines:
-- Be helpful and engaging. Use a natural, conversational tone — like a smart colleague who genuinely enjoys explaining things.
-- Use the provided context to ground your answers. Prefer PINNED CONTEXT when available.
-- If the context doesn't contain the answer, say so honestly. Never make things up.
-- Format code blocks with proper syntax highlighting. Use headings and bullet points for clarity.
-- Keep responses focused but don't be terse — provide enough detail to be genuinely helpful.
+    system_content.push_str("PINNED CONTEXT:\n");
+    if pinned_context.is_empty() {
+        system_content.push_str("None\n");
+    } else {
+        system_content.push_str(&pinned_context);
+    }
 
-{sys_block}
-
-PINNED CONTEXT:
-{pinned}
-
-CONTEXT:
-{context}",
-        sys_block = sys_block,
-        pinned = if pinned_context.is_empty() {
-            "None".to_string()
-        } else {
-            pinned_context
-        },
-        context = if context.is_empty() {
-            "None".to_string()
-        } else {
-            context
-        },
-    );
+    system_content.push_str("\nCONTEXT:\n");
+    if context.is_empty() {
+        system_content.push_str("None");
+    } else {
+        system_content.push_str(&context);
+    }
 
     messages.push(serde_json::json!({
         "role": "system",
@@ -541,17 +572,9 @@ CONTEXT:
         }
     }
 
-    let user_content = format!(
-        "{query}
-
-IMPORTANT: End your response EXACTLY with this block for follow-up questions:
-FOLLOW_UP_SUGGESTIONS:
-1. [question]
-2. [question]
-3. [question]
-",
-        query = request.query
-    );
+    let mut user_content = String::with_capacity(request.query.len() + 200);
+    user_content.push_str(&request.query);
+    user_content.push_str("\n\nIMPORTANT: End your response EXACTLY with this block for follow-up questions:\nFOLLOW_UP_SUGGESTIONS:\n1. [question]\n2. [question]\n3. [question]\n");
 
     messages.push(serde_json::json!({
         "role": "user",
@@ -673,6 +696,55 @@ pub async fn search_files(
 // ─── File Operations ─────────────────────────────────────────────────────────
 
 #[tauri::command]
+pub async fn execute_shell_command(cmd: String, args: Vec<String>, cwd: Option<String>) -> Result<serde_json::Value, String> {
+    let mut command = tokio::process::Command::new(cmd);
+    if !args.is_empty() {
+        command.args(args);
+    }
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+    
+    match command.output().await {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let code = output.status.code().unwrap_or(-1);
+            Ok(serde_json::json!({
+                "stdout": stdout,
+                "stderr": stderr,
+                "code": code,
+            }))
+        }
+        Err(e) => Err(format!("Failed to execute command: {}", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn apply_diff(filepath: String, original_content: String, new_content: String) -> Result<(), String> {
+    let path = std::path::Path::new(&filepath);
+    if !path.exists() {
+        // Allow creation of new files if it doesn't exist
+        if let Some(parent) = path.parent() {
+            let _ = tokio::fs::create_dir_all(parent).await;
+        }
+        return tokio::fs::write(path, new_content).await.map_err(|e| e.to_string());
+    }
+
+    let current = tokio::fs::read_to_string(path).await.map_err(|e| e.to_string())?;
+    
+    let updated = if original_content.is_empty() {
+        // If original is empty, assume a full file overwrite
+        new_content
+    } else {
+        // String replace for the diff
+        current.replace(&original_content, &new_content)
+    };
+
+    tokio::fs::write(path, updated).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_file_tree(folder_path: String) -> Result<Vec<crawler::FileNode>, String> {
     crawler::build_file_tree(&folder_path).await
 }
@@ -720,16 +792,16 @@ async fn read_file_content(path: &std::path::Path) -> Result<String, String> {
 
 fn rand_index(max: usize) -> usize {
     use std::time::SystemTime;
-    SystemTime::now()
+    let nanos = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos() as usize
-        % max
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(1337);
+    (nanos as usize) % max
 }
 
 #[tauri::command]
 pub async fn get_timeline(folder_path: String, hours: f64) -> Result<Vec<TimelineEvent>, String> {
-    let files = crate::crawler::crawl_directory(&folder_path).await?;
+    let files = crate::crawler::crawl_metadata(&folder_path).await?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -738,34 +810,49 @@ pub async fn get_timeline(folder_path: String, hours: f64) -> Result<Vec<Timelin
     let threshold = now - (hours * 3600.0 * 1000.0);
     let mut events = Vec::new();
 
-    for file in files {
-        if let Ok(meta) = std::fs::metadata(&file.file_path) {
-            let mtime = meta.modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs_f64() * 1000.0)
-                .unwrap_or(0.0);
-            
-            if mtime > threshold {
-                let relative_path = file.file_path
-                    .strip_prefix(&folder_path)
-                    .unwrap_or(&file.file_path)
-                    .trim_start_matches(|c| c == '/' || c == '\\')
-                    .to_string();
+    // Sort files by mtime descending directly to get the most recent ones
+    let mut recent_files = files;
+    recent_files.sort_by(|a, b| b.mtime.partial_cmp(&a.mtime).unwrap_or(std::cmp::Ordering::Equal));
 
-                events.push(TimelineEvent {
-                    file_path: file.file_path,
-                    relative_path,
-                    mtime,
-                    change_type: "modified".to_string(),
-                });
+    for file in recent_files {
+        if file.mtime > threshold {
+            if events.len() >= 40 { break; } // Hard cap at 40 files
+
+            let relative_path = file.file_path
+                .strip_prefix(&folder_path)
+                .unwrap_or(&file.file_path)
+                .trim_start_matches(|c| c == '/' || c == '\\')
+                .to_string();
+
+            let mut current_content = None;
+            // Only read if file is reasonably small (< 500KB)
+            if let Ok(meta) = std::fs::metadata(&file.file_path) {
+                if meta.len() < 500_000 {
+                    if let Ok(content) = tokio::fs::read_to_string(&file.file_path).await {
+                        let truncated: String = content.chars().take(1000).collect();
+                        current_content = Some(truncated);
+                    }
+                }
             }
+
+            events.push(TimelineEvent {
+                file_path: file.file_path,
+                relative_path,
+                mtime: file.mtime,
+                change_type: "modified".to_string(),
+                current_content,
+            });
         }
     }
 
-    events.sort_by(|a, b| b.mtime.partial_cmp(&a.mtime).unwrap_or(std::cmp::Ordering::Equal));
-
     Ok(events)
+}
+
+#[tauri::command]
+pub async fn get_git_context(folder_path: String) -> Result<crate::git::GitContext, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::git::get_git_context(folder_path)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

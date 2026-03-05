@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.3.0"
+version = "0.6.0"
 description = "Atlas Desktop"
 authors = ["Rifaque Ahmed"]
 license = "MIT"
@@ -50,3 +50,11 @@ tauri-plugin-process = "2"         # relaunch after update
 base64 = "0.22.1"                  # encode images for vision models
 lru = "0.16.3"
 tauri-plugin-global-shortcut = "2.3.1"
+notify = "6.1.1"
+notify-debouncer-mini = "0.4.1"
+git2 = { version = "0.19", default-features = false }
+tree-sitter = "0.24"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.21"
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"

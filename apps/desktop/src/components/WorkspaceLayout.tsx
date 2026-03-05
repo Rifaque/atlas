@@ -10,7 +10,7 @@ import {
     Maximize2, Minimize2, Sun, Moon, Image as ImageIcon
 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, startChat, checkOllamaStatus, scanSecrets, fetchTimeline, type SearchResult, type FileNode, type SecretMatch } from '../lib/api';
+import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, startChat, checkOllamaStatus, scanSecrets, fetchTimeline, startWatcher, stopWatcher, fetchGitContext, type SearchResult, type FileNode, type SecretMatch } from '../lib/api';
 import {
     loadChats, saveChat, createNewChat, deleteChat, renameChat,
     type ChatSession, type CitationRef
@@ -21,9 +21,10 @@ import { toast } from '../lib/toast';
 import { patchWorkspace, type Workspace } from '../lib/workspaces';
 import { InlineFileViewer } from './InlineFileViewer';
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette';
-import { toggleTheme, getCurrentTheme } from '../lib/theme';
+import { toggleTheme, getCurrentTheme, setTheme } from '../lib/theme';
 import { PERSONAS, getPersona, type Persona } from '../lib/personas';
 import { ModelSelector } from './ModelSelector';
+import { CodeDiffProposed } from './CodeDiffProposed';
 
 // code block that you can click to copy
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -60,6 +61,61 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
     );
 }
 
+function parseThinkTags(content: string) {
+    const parts: Array<{ type: 'text' | 'think'; content: string; isComplete?: boolean }> = [];
+    let remaining = content;
+
+    while (remaining.length > 0) {
+        const startIndex = remaining.indexOf('<think>');
+        if (startIndex === -1) {
+            parts.push({ type: 'text', content: remaining });
+            break;
+        }
+
+        if (startIndex > 0) {
+            parts.push({ type: 'text', content: remaining.slice(0, startIndex) });
+        }
+
+        const endIndex = remaining.indexOf('</think>', startIndex);
+        if (endIndex === -1) {
+            parts.push({ type: 'think', content: remaining.slice(startIndex + 7).trimStart(), isComplete: false });
+            break;
+        } else {
+            parts.push({ type: 'think', content: remaining.slice(startIndex + 7, endIndex).trim(), isComplete: true });
+            remaining = remaining.slice(endIndex + 8);
+        }
+    }
+    return parts as Array<{ type: 'text'; content: string; isComplete: never } | { type: 'think'; content: string; isComplete: boolean }>;
+}
+
+function ThinkBlock({ content, isComplete }: { content: string, isComplete: boolean }) {
+    const [isOpen, setIsOpen] = useState(!isComplete);
+
+    return (
+        <div className="relative my-3 overflow-hidden rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.2)]">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex w-full items-center justify-between bg-[rgba(255,255,255,0.02)] px-4 py-2.5 text-xs text-text-secondary hover:bg-[rgba(255,255,255,0.04)] hover:text-text-primary transition-colors"
+            >
+                <div className="flex items-center gap-2 font-medium">
+                    {isComplete ? <Bot size={14} className="text-accent opacity-80" /> : <Loader2 size={14} className="animate-spin text-accent" />}
+                    <span>{isComplete ? 'Thought process' : 'Thinking...'}</span>
+                </div>
+                <ArrowDown size={14} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`grid transition-all duration-300 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                <div className="overflow-hidden">
+                    <div className="px-5 py-4 border-t border-[rgba(255,255,255,0.04)] text-[13px] leading-relaxed opacity-80 prose prose-invert max-w-none text-text-secondary prose-p:my-2 prose-p:break-words prose-pre:bg-[rgba(255,255,255,0.03)] prose-pre:border prose-pre:border-[rgba(255,255,255,0.06)]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || '...'}</ReactMarkdown>
+                    </div>
+                </div>
+            </div>
+            {/* Left accent line */}
+            <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent/30" />
+        </div>
+    );
+}
+
 // main workspace layout
 interface WorkspaceLayoutProps {
     workspace: Workspace;
@@ -84,7 +140,6 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     });
     const [leftTab, setLeftTab] = useState<'search' | 'files' | 'active'>('search');
     const [previewFile, setPreviewFile] = useState<{ filePath: string; lineStart?: number } | null>(null);
-    const [isSyncing, setIsSyncing] = useState(false);
     const [overrideModel, setOverrideModel] = useState<string>(''); // For multi-model routing
     const [showCommandPalette, setShowCommandPalette] = useState(false);
     const [currentTheme, setCurrentTheme] = useState(getCurrentTheme);
@@ -130,6 +185,14 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     useEffect(() => {
         fetchIndexStats().then(s => setIndexedChunks(s.count));
     }, []);
+
+    // File Watcher
+    useEffect(() => {
+        startWatcher(workspace.folderPath, workspace.model).catch(console.error);
+        return () => {
+            stopWatcher(workspace.folderPath).catch(console.error);
+        };
+    }, [workspace.folderPath, workspace.model]);
 
     // Search
     const [searchQuery, setSearchQuery] = useState('');
@@ -207,7 +270,12 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     }, [isGenerating]);
 
     // event handlers
-    const handleSaveSettings = (s: AtlasSettings) => { setSettings(s); persistSettings(s); toast('Settings saved ✓', 'success'); };
+    const handleSaveSettings = (s: AtlasSettings) => {
+        setSettings(s);
+        persistSettings(s);
+        setTheme(s.theme, s.accentColor);
+        toast('Settings saved ✓', 'success');
+    };
 
     const handleNewChat = () => {
         if (isGenerating) return;
@@ -309,12 +377,6 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         toast('Returning to workspace setup to re-index', 'info');
     };
 
-    const handleSyncWorkspace = async () => {
-        setIsSyncing(true);
-        toast('Workspace sync is handled automatically by the Rust core', 'info');
-        setIsSyncing(false);
-    };
-
     const handleStop = () => { abortRef.current?.abort(); toast('Generation stopped', 'info'); };
 
     const handleTimeline = async (hours: number = 24) => {
@@ -325,28 +387,17 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                 toast('No recent changes found.', 'info');
                 return;
             }
-            const timelineText = events.map(e => `- ${e.relative_path} (modified ${new Date(e.mtime).toLocaleString()})`).join('\n');
+            const timelineText = events.map(e => {
+                let text = `- ${e.relative_path} (modified ${new Date(e.mtime).toLocaleString()})`;
+                if (e.current_content) {
+                    text += `\n  Content snippet:\n\`\`\`\n${e.current_content}\n\`\`\``;
+                }
+                return text;
+            }).join('\n\n');
             const timelineQuery = `Analyze the following recent changes in the workspace (last ${hours} hours):\n${timelineText}\nWhat are the main changes and their impact?`;
-            // Directly start chat with this query, bypass input field
-            await startChat({
-                query: timelineQuery,
-                model: overrideModel || model,
-                provider,
-                apiKey: provider === 'openrouter' ? apiKey : undefined,
-                ollamaHost: provider === 'ollama' ? settings.ollamaHost : undefined,
-                manualFiles: activeSession.manualContext || [],
-                systemPrompt: settings.systemPrompt,
-                folderPath: workspace.folderPath,
-                history: [],
-                embeddingModel: workspace.model,
-                persona: activePersona !== 'default' ? activePersona : undefined,
-                webSearchEnabled: settings.webSearchEnabled || false,
-                webSearchApiKey: settings.webSearchEnabled ? settings.webSearchApiKey : undefined,
-                webSearchProvider: settings.webSearchEnabled ? settings.webSearchProvider : undefined,
-                images: [],
-            }, (_event) => {
-                // Reuse existing event handling logic (could refactor, but for now just ignore)
-            });
+
+            // Directly start chat with this query
+            await executeChat(timelineQuery);
         } catch (e) {
             toast('Failed to fetch timeline.', 'error');
         }
@@ -435,6 +486,17 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     return { role: m.role as 'user' | 'assistant', content: histContent };
                 });
 
+            let dynamicSystemPrompt = settings.systemPrompt || '';
+            try {
+                const gitCtx = await fetchGitContext(workspace.folderPath);
+                if (gitCtx) {
+                    const gitInfo = `--- Git Context ---\nActive Branch: ${gitCtx.branch}\nUncommitted Files: ${gitCtx.uncommitted_files.length ? gitCtx.uncommitted_files.join(', ') : 'None'}\nDiff Summary: ${gitCtx.diff_summary || 'No changes'}\nRecent Commits: ${gitCtx.recent_commits.join(' | ') || 'None'}\n-------------------`;
+                    dynamicSystemPrompt = dynamicSystemPrompt ? `${dynamicSystemPrompt}\n\n${gitInfo}` : gitInfo;
+                }
+            } catch (err) {
+                console.error('Failed to fetch git context', err);
+            }
+
             const { unlisten } = await startChat(
                 {
                     query: q,
@@ -443,7 +505,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     apiKey: provider === 'openrouter' ? apiKey : undefined,
                     ollamaHost: provider === 'ollama' ? settings.ollamaHost : undefined,
                     manualFiles: activeSession.manualContext || [],
-                    systemPrompt: settings.systemPrompt,
+                    systemPrompt: dynamicSystemPrompt,
                     folderPath: workspace.folderPath,
                     history,
                     embeddingModel: workspace.model, // match indexed vector dimensions
@@ -539,6 +601,20 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
     const markdownComponents = {
         code({ className, children, ...props }: any) {
+            const match = /language-(\w+)/.exec(className || '');
+            const lang = match ? match[1] : '';
+
+            if (lang === 'json') {
+                try {
+                    const parsed = JSON.parse(String(children));
+                    if (parsed && typeof parsed === 'object' && 'filepath' in parsed && 'newContent' in parsed) {
+                        return <CodeDiffProposed filepath={parsed.filepath} originalContent={parsed.originalContent || ''} newContent={parsed.newContent} />;
+                    }
+                } catch (e) {
+                    // Not a valid JSON diff block, fallback below
+                }
+            }
+
             if (className?.startsWith('language-')) return <CodeBlock className={className}>{children}</CodeBlock>;
             return <code className="bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 rounded text-[#e6a050] text-xs font-mono" {...props}>{children}</code>;
         }
@@ -628,7 +704,6 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     { id: 'settings', label: 'Open Settings', icon: <Settings size={14} />, category: 'action', onSelect: () => setShowSettings(true) },
                     { id: 'zen-toggle', label: zenMode ? 'Exit Zen Mode' : 'Enter Zen Mode', icon: <Maximize2 size={14} />, category: 'action', onSelect: toggleZenMode },
                     { id: 'export', label: 'Export Chat as Markdown', icon: <Download size={14} />, category: 'action', onSelect: handleExportChat },
-                    { id: 'sync', label: 'Sync Workspace', icon: <RefreshCcw size={14} />, category: 'action', onSelect: handleSyncWorkspace },
                     { id: 'timeline', label: 'Timeline: What changed recently?', icon: <RefreshCcw size={14} />, category: 'action', onSelect: () => handleTimeline(24) },
                 ] as CommandPaletteAction[]}
             />
@@ -689,10 +764,6 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                 <span className="text-text-secondary">{ollamaOnline ? 'Ollama Online' : 'Ollama Offline'}</span>
                             </>
                         )}
-                        <button onClick={handleSyncWorkspace} disabled={isSyncing} className="ml-auto text-[10px] flex items-center gap-1 text-text-secondary hover:text-white transition-colors disabled:opacity-50">
-                            <RefreshCcw size={10} className={isSyncing ? 'animate-spin' : ''} />
-                            Sync
-                        </button>
                     </div>
                     <div className="flex items-center justify-between text-text-secondary">
                         <span className="truncate opacity-70">{workspace.name}</span>
@@ -807,7 +878,12 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             const pinned = activeSession?.manualContext || [];
                                             const auto = (last?.citations || []).filter(c => !pinned.includes(c));
                                             const refs = (last?.citationRefs || []).filter(r => !pinned.includes(r.filePath));
-                                            if (!auto.length) return <div className="text-xs text-text-secondary/40 pl-1">Ask a question to see retrieved files.</div>;
+                                            if (!auto.length) return (
+                                                <div className="text-[10px] text-text-secondary/40 pl-1 italic flex items-center gap-1.5 py-4">
+                                                    <Bot size={10} className="opacity-50" />
+                                                    Ask a question to see retrieved files from your workspace.
+                                                </div>
+                                            );
                                             return auto.map(fp => {
                                                 const fn = fp.split(/[/\\]/).pop() || fp;
                                                 const ref = refs.find(r => r.filePath === fp);
@@ -943,9 +1019,15 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             ? 'bg-accent-muted border border-accent/20'
                                             : 'bg-glass-bg border border-glass-border'}`}>
                                             <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-0">
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                                                    {msg.content}
-                                                </ReactMarkdown>
+                                                {parseThinkTags(msg.content).map((part, pIdx) => (
+                                                    part.type === 'think' ? (
+                                                        <ThinkBlock key={pIdx} content={part.content} isComplete={part.isComplete} />
+                                                    ) : (
+                                                        <ReactMarkdown key={pIdx} remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                                                            {part.content}
+                                                        </ReactMarkdown>
+                                                    )
+                                                ))}
                                                 {(isGenerating && i === activeSession.messages.length - 1) && (
                                                     <span className="inline-block w-1.5 h-3.5 bg-accent ml-1 animate-pulse align-middle opacity-80"></span>
                                                 )}
@@ -1068,7 +1150,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             onClick={() => imageInputRef.current?.click()}
                                             disabled={isGenerating}
                                             className="p-1.5 text-text-secondary hover:text-accent transition-colors disabled:opacity-30"
-                                            data-tooltip="Attach Images"
+                                            data-tooltip="Attach images to your message"
                                             title=""
                                         >
                                             <ImageIcon size={14} />
@@ -1088,7 +1170,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                                 <StopCircle size={12} />Stop
                                             </button>
                                         )}
-                                        <button onClick={() => handleTimeline(24)} disabled={isGenerating} className={`flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-200 ${isGenerating ? 'bg-bg-surface-active text-text-muted cursor-not-allowed' : 'bg-green-500 text-bg-main hover:opacity-90 active:scale-95 shadow-md'}`}>
+                                        <button onClick={() => handleTimeline(24)} disabled={isGenerating} title="Analyze all file changes made in the last 24 hours" className={`flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg transition-all duration-200 ${isGenerating ? 'bg-bg-surface-active text-text-muted cursor-not-allowed' : 'bg-green-500 text-bg-main hover:opacity-90 active:scale-95 shadow-md'}`}>
                                             {isGenerating ? <><Loader2 size={12} className="animate-spin" />Processing</> : <>Timeline<Send size={12} /></>}
                                         </button>
                                         <button onClick={() => handleSubmitChat()} disabled={!inputQuery.trim() || isGenerating}

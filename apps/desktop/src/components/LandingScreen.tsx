@@ -88,9 +88,13 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
         try {
             const jobId = await startIndexing(folderPath, selectedModel);
             const unlisten = await listenIndexProgress(jobId, (data) => {
+                const currentProgress = (data.processedFiles && data.totalChunks)
+                    ? Math.round((data.processedFiles / data.totalChunks) * 100)
+                    : 0;
+
                 if (data.status === 'running') {
                     setStatusMsg(`Indexing files… (${data.processedFiles} processed, ${data.totalChunks} chunks)`);
-                    setProgress(50);
+                    setProgress(Math.max(5, currentProgress)); // Start at 5% to show activity
                 } else if (data.status === 'completed') {
                     setStatusMsg('Indexing complete!');
                     setProgress(100);

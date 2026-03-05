@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     Settings, X, AlertTriangle, RefreshCw,
     Eye, EyeOff, Loader2, ChevronDown, ChevronRight,
-    Cpu, CheckCircle2, Zap, Globe,
+    Cpu, CheckCircle2, Zap, Globe, Palette
 } from 'lucide-react';
 import { fetchOpenRouterModels as fetchOrModels } from '../lib/api';
 
@@ -19,6 +19,8 @@ export interface AtlasSettings {
     webSearchEnabled: boolean;
     webSearchProvider: 'tavily' | 'serper';
     webSearchApiKey: string;
+    theme: 'dark' | 'light' | 'system';
+    accentColor: string;
 }
 
 export const DEFAULT_SETTINGS: AtlasSettings = {
@@ -32,6 +34,8 @@ export const DEFAULT_SETTINGS: AtlasSettings = {
     webSearchEnabled: false,
     webSearchProvider: 'tavily',
     webSearchApiKey: '',
+    theme: 'dark',
+    accentColor: '#6366f1',
 };
 
 export function loadSettings(): AtlasSettings {
@@ -238,7 +242,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onClose }: SettingsModalProps) {
-    const [activeTab, setActiveTab] = useState<'general' | 'models' | 'system'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'models' | 'system'>('general');
     const [draft, setDraft] = useState<AtlasSettings>({ ...settings });
     const [showKey, setShowKey] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -301,15 +305,16 @@ export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onCl
                     </div>
 
                     <div className="flex gap-4">
-                        {(['general', 'models', 'system'] as const).map(tab => (
+                        {(['general', 'appearance', 'models', 'system'] as const).map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`pb-3 text-sm font-medium capitalize border-b-2 transition-colors focus:outline-none ${activeTab === tab
+                                className={`pb-3 text-sm font-medium capitalize border-b-2 transition-colors focus:outline-none flex items-center gap-1.5 ${activeTab === tab
                                     ? 'border-accent text-white'
                                     : 'border-transparent text-text-secondary hover:text-text-primary'
                                     }`}
                             >
+                                {tab === 'appearance' && <Palette size={12} className={activeTab === 'appearance' ? 'text-accent' : ''} />}
                                 {tab}
                             </button>
                         ))}
@@ -400,6 +405,72 @@ export function SettingsModal({ settings, indexedChunks, onSave, onReindex, onCl
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* ── APPEARANCE TAB ──────────────────────────────── */}
+                    {activeTab === 'appearance' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {/* Theme Selection */}
+                            <section className="space-y-3">
+                                <label className="label-sm">Interface Theme</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['light', 'dark', 'system'] as const).map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => set('theme', t)}
+                                            className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all capitalize ${draft.theme === t
+                                                ? 'border-accent/60 bg-accent/10 text-accent'
+                                                : 'border-glass-border text-text-secondary hover:border-accent/30'
+                                                }`}
+                                        >
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                            </section>
+
+                            {/* Accent Color Selection */}
+                            <section className="space-y-4">
+                                <label className="label-sm">Accent Color</label>
+                                <div className="flex flex-wrap gap-3">
+                                    {[
+                                        { name: 'Indigo', hex: '#6366f1' },
+                                        { name: 'Ruby', hex: '#e11d48' },
+                                        { name: 'Emerald', hex: '#10b981' },
+                                        { name: 'Amber', hex: '#f59e0b' },
+                                        { name: 'Cyan', hex: '#06b6d4' },
+                                        { name: 'Violet', hex: '#8b5cf6' },
+                                    ].map(c => (
+                                        <button
+                                            key={c.hex}
+                                            onClick={() => set('accentColor', c.hex)}
+                                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center ${draft.accentColor === c.hex
+                                                ? 'border-white bg-white/10'
+                                                : 'border-transparent'
+                                                }`}
+                                            title={c.name}
+                                            aria-label={c.name}
+                                        >
+                                            <div className="w-5 h-5 rounded-full shadow-sm" style={{ backgroundColor: c.hex }} />
+                                        </button>
+                                    ))}
+
+                                    {/* Custom color picker */}
+                                    <div className="flex items-center gap-2 ml-auto">
+                                        <span className="text-[10px] text-text-secondary uppercase font-bold tracking-widest">Custom:</span>
+                                        <input
+                                            type="color"
+                                            value={draft.accentColor}
+                                            onChange={e => set('accentColor', e.target.value)}
+                                            className="w-8 h-8 bg-transparent border-0 cursor-pointer p-0"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-text-secondary/50">
+                                    This color is used for buttons, borders, and highlights across the app.
+                                </p>
+                            </section>
                         </div>
                     )}
 

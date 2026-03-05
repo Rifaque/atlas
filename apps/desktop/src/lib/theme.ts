@@ -12,9 +12,16 @@ function resolveTheme(pref: Theme): 'dark' | 'light' {
     return pref;
 }
 
-/** Apply theme to the <html> element */
-function applyTheme(theme: 'dark' | 'light') {
+/** Apply theme and accent to the <html> element */
+function applyTheme(theme: 'dark' | 'light', accent?: string) {
     document.documentElement.setAttribute('data-theme', theme);
+    if (accent) {
+        document.documentElement.style.setProperty('--accent', accent);
+        // Simplified auto-generating muted/glow variants for convenience
+        // In a real app we might use chroma-js or similar, but for now we'll stick to basic hex support
+        document.documentElement.style.setProperty('--accent-muted', `${accent}25`); // 15% opacity hex
+        document.documentElement.style.setProperty('--accent-glow', `${accent}40`);  // 25% opacity hex
+    }
 }
 
 /** Get stored preference */
@@ -24,21 +31,27 @@ export function getStoredTheme(): Theme {
     return 'dark'; // default to dark
 }
 
-/** Set and apply theme */
-export function setTheme(pref: Theme) {
+/** Set and apply theme and accent */
+export function setTheme(pref: Theme, accent?: string) {
     localStorage.setItem(STORAGE_KEY, pref);
-    applyTheme(resolveTheme(pref));
+    if (accent) localStorage.setItem('atlas-accent', accent);
+    applyTheme(resolveTheme(pref), accent || localStorage.getItem('atlas-accent') || undefined);
+}
+
+export function getStoredAccent(): string {
+    return localStorage.getItem('atlas-accent') || '#6366f1'; // Default Indigo
 }
 
 /** Initialize theme on app start — call once in App.tsx */
 export function initTheme() {
     const pref = getStoredTheme();
-    applyTheme(resolveTheme(pref));
+    const accent = getStoredAccent();
+    applyTheme(resolveTheme(pref), accent);
 
     // Listen for OS theme changes when set to 'system'
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         if (getStoredTheme() === 'system') {
-            applyTheme(resolveTheme('system'));
+            applyTheme(resolveTheme('system'), getStoredAccent());
         }
     });
 }

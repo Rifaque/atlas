@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atlas",
-  "version": "0.3.0",
+  "version": "0.6.0",
   "identifier": "com.atlas.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -14,9 +14,9 @@
       {
         "title": "Atlas",
         "width": 1200,
-        "height": 1000,
+        "height": 800,
         "minWidth": 1000,
-        "minHeight": 800,
+        "minHeight": 600,
         "resizable": true,
         "fullscreen": false
       }

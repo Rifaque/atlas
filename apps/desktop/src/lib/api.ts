@@ -41,6 +41,14 @@ export async function startIndexing(folderPath: string, model: string): Promise<
     return await invoke<string>('start_indexing', { folderPath, model });
 }
 
+export async function startWatcher(folderPath: string, model: string): Promise<void> {
+    await invoke('start_watcher', { folderPath, model });
+}
+
+export async function stopWatcher(folderPath: string): Promise<void> {
+    await invoke('stop_watcher', { folderPath });
+}
+
 export interface IndexProgress {
     status: string;
     processedFiles?: number;
@@ -135,6 +143,22 @@ export async function searchFiles(query: string, model: string, folderPath?: str
 
 // ─── File Operations ─────────────────────────────────────────────────────────
 
+export async function executeShellCommand(cmd: string, args: string[], cwd?: string): Promise<{ stdout: string, stderr: string, code: number }> {
+    try {
+        return await invoke('execute_shell_command', { cmd, args, cwd });
+    } catch (e: any) {
+        throw new Error(e);
+    }
+}
+
+export async function applyDiff(filepath: string, originalContent: string, newContent: string): Promise<void> {
+    try {
+        await invoke('apply_diff', { filepath, originalContent, newContent });
+    } catch (e: any) {
+        throw new Error(e);
+    }
+}
+
 export interface FileNode {
     name: string;
     path: string;
@@ -186,6 +210,7 @@ export interface TimelineEvent {
     relative_path: string;
     mtime: number;
     change_type: string;
+    current_content: string | null;
 }
 
 /** Fetch timeline events for the workspace folder within the past `hours` hours. */
@@ -194,6 +219,23 @@ export async function fetchTimeline(folderPath: string, hours: number): Promise<
         return await invoke<TimelineEvent[]>('get_timeline', { folderPath, hours });
     } catch {
         return [];
+    }
+}
+
+// ─── Git Awareness ────────────────────────────────────────────────────────────
+
+export interface GitContext {
+    branch: string;
+    uncommitted_files: string[];
+    recent_commits: string[];
+    diff_summary: string;
+}
+
+export async function fetchGitContext(folderPath: string): Promise<GitContext | null> {
+    try {
+        return await invoke<GitContext>('get_git_context', { folderPath });
+    } catch {
+        return null;
     }
 }
 

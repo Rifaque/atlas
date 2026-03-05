@@ -11,7 +11,16 @@
     "fs:default",
     "os:default",
     "shell:allow-spawn",
-    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "code",
+          "cmd": "code",
+          "args": true
+        }
+      ]
+    },
     "shell:allow-kill",
     "shell:allow-open"
   ]
