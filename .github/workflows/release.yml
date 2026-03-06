@@ -2,8 +2,8 @@ name: Build and Release
 
 on:
   push:
-    branches: [main, development]
-    tags: ['v*']
+    tags:
+      - 'v*'
   pull_request:
     branches: [main, development]
   workflow_dispatch:
@@ -100,7 +100,7 @@ jobs:
         run: |
           $buildDir = "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
           mkdir -Force dist-artifacts
-          Copy-Item "$buildDir/nsi/*.exe" -Destination "dist-artifacts/"
+          Copy-Item "$buildDir/nsis/*.exe" -Destination "dist-artifacts/"
           Copy-Item "$buildDir/msi/*.msi" -Destination "dist-artifacts/"
 
       - name: Prepare Artifacts (Linux)
@@ -112,11 +112,11 @@ jobs:
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref == 'refs/heads/main' && 'nightly' || 'development') }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref == 'refs/heads/main' && 'Nightly Build' || 'Development Build') }}
-          prerelease: ${{ github.ref_type != 'tag' }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          prerelease: false
           files: dist-artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
