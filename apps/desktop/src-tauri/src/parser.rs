@@ -1,12 +1,21 @@
-use tree_sitter::{Parser, Language};
+use tree_sitter::Parser;
 use std::path::Path;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SemanticRelationship {
+    pub from_name: String,
+    pub to_name: String,
+    pub kind: String, // "call", "import", "inherit"
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SemanticChunk {
     pub text: String,
     pub start_line: usize,
     pub end_line: usize,
     pub kind: String,
     pub name: Option<String>,
+    pub relationships: Vec<SemanticRelationship>,
 }
 
 pub struct CodeParser {
@@ -28,9 +37,9 @@ impl CodeParser {
 
         let language = match extension {
             "ts" | "tsx" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
-            "js" | "jsx" => Some(tree_sitter_javascript::language()),
-            "rs" => Some(tree_sitter_rust::language()),
-            "py" => Some(tree_sitter_python::language()),
+            "js" | "jsx" => Some(tree_sitter_javascript::LANGUAGE.into()),
+            "rs" => Some(tree_sitter_rust::LANGUAGE.into()),
+            "py" => Some(tree_sitter_python::LANGUAGE.into()),
             _ => None,
         };
 
@@ -42,14 +51,55 @@ impl CodeParser {
             let mut chunks = Vec::new();
             self.walk_node(root_node, content, &mut chunks);
             
-            // If we found any semantic chunks, return them. 
-            // Otherwise, or if the file is too small, fallback is handled by the caller.
+            // Extract relationships between the chunks we found
+            self.extract_relationships(root_node, content, &mut chunks);
+
             if !chunks.is_empty() {
                 return chunks;
             }
         }
 
         Vec::new()
+    }
+
+    fn extract_relationships(&self, _root_node: tree_sitter::Node, _content: &str, chunks: &mut Vec<SemanticChunk>) {
+        let chunk_names: std::collections::HashSet<String> = chunks.iter()
+            .filter_map(|c| c.name.clone())
+            .collect();
+
+        // Map names to chunks for easier lookup
+        for i in 0..chunks.len() {
+            let current_name = chunks[i].name.clone().unwrap_or_default();
+            if current_name.is_empty() { continue; }
+
+            let mut relationships = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+
+            // Find the node corresponding to this chunk
+            // We'll search for identifiers within the text range of this chunk
+            let _start_byte = chunks[i].start_line; // This is actually line index, need byte offset
+            // Actually, we should have passed the Node to extract_relationships or stored it.
+            // Since we don't have the node mapping easily, we'll use a slightly better heuristic:
+            // Scan for identifiers that match other chunk names.
+            
+            for other_name in &chunk_names {
+                if *other_name != current_name && !seen.contains(other_name) {
+                    // Look for the exact identifier in the code text
+                    let pattern = format!(r"\b{}\b", regex::escape(other_name));
+                    if let Ok(re) = regex::Regex::new(&pattern) {
+                        if re.is_match(&chunks[i].text) {
+                            relationships.push(SemanticRelationship {
+                                from_name: current_name.clone(),
+                                to_name: other_name.clone(),
+                                kind: "reference".to_string(),
+                            });
+                            seen.insert(other_name.clone());
+                        }
+                    }
+                }
+            }
+            chunks[i].relationships = relationships;
+        }
     }
 
     fn walk_node<'a>(&self, node: tree_sitter::Node<'a>, content: &str, chunks: &mut Vec<SemanticChunk>) {
@@ -69,12 +119,9 @@ impl CodeParser {
             let start_line = node.start_position().row;
             let end_line = node.end_position().row;
             
-            // Avoid tiny chunks and massive ones (let's say > 5 lines)
             if end_line - start_line >= 3 {
                 let range = node.byte_range();
                 let text = content[range].to_string();
-                
-                // Try to find a name for the chunk
                 let name = self.find_name(node, content);
 
                 chunks.push(SemanticChunk {
@@ -83,6 +130,7 @@ impl CodeParser {
                     end_line,
                     kind: kind.to_string(),
                     name,
+                    relationships: Vec::new(),
                 });
             }
         }

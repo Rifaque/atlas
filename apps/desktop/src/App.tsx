@@ -3,7 +3,7 @@ import { LandingScreen } from './components/LandingScreen';
 import { WorkspaceLayout } from './components/WorkspaceLayout';
 import { UpdateChecker } from './components/UpdateChecker';
 import { ToastProvider } from './lib/toast';
-import { getActiveWorkspace, type Workspace } from './lib/workspaces';
+import { getActiveWorkspaces, type Workspace } from './lib/workspaces';
 import { initTheme } from './lib/theme';
 
 // Initialize theme before first paint
@@ -26,28 +26,40 @@ function StartupSplash() {
   );
 }
 
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { OverlayChat } from './components/OverlayChat';
+
 // Main app component
 function App() {
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
+  const [activeWorkspaces, setActiveWorkspaces] = useState<Workspace[]>([]);
   const [checked, setChecked] = useState(false);
+  const [isOverlay, setIsOverlay] = useState(false);
 
-  // Restore last workspace on mount
+  // Restore last workspaces on mount
   useEffect(() => {
-    const ws = getActiveWorkspace();
-    if (ws) setActiveWorkspace(ws);
-    setChecked(true);
+    const checkWindow = async () => {
+      const win = getCurrentWindow();
+      if (win.label === 'overlay') {
+        setIsOverlay(true);
+      }
+      const ws = getActiveWorkspaces();
+      setActiveWorkspaces(ws);
+      setChecked(true);
+    };
+    checkWindow();
   }, []);
 
   if (!checked) return <StartupSplash />;
+  if (isOverlay) return <OverlayChat />;
 
   return (
     <ToastProvider>
-      {activeWorkspace
+      {activeWorkspaces.length > 0
         ? <WorkspaceLayout
-          workspace={activeWorkspace}
-          onLeaveWorkspace={() => setActiveWorkspace(null)}
+          workspaces={activeWorkspaces}
+          onLeaveWorkspace={() => setActiveWorkspaces([])}
         />
-        : <LandingScreen onIndexed={(ws) => setActiveWorkspace(ws)} />
+        : <LandingScreen onIndexed={(ws) => setActiveWorkspaces([ws])} />
       }
       <UpdateChecker />
     </ToastProvider>

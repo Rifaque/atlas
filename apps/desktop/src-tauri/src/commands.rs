@@ -23,6 +23,7 @@ pub struct AppState {
 pub struct IndexingJob {
     pub id: String,
     pub folder_path: String,
+    pub workspace_id: String,
     pub status: String, // "running", "completed", "failed"
     pub processed_files: usize,
     pub total_chunks: usize,
@@ -85,6 +86,7 @@ pub async fn start_indexing_internal(
     let job = IndexingJob {
         id: job_id.clone(),
         folder_path: folder_path.clone(),
+        workspace_id: folder_path.clone(), // Use folder path as workspace ID for now
         status: "running".to_string(),
         processed_files: 0,
         total_chunks: 0,
@@ -140,6 +142,7 @@ async fn run_indexing_job(
         chunk_index: i32,
         kind: Option<String>,
         name: Option<String>,
+        relationships: Vec<crate::parser::SemanticRelationship>,
     }
 
     let mut parser = crate::parser::CodeParser::new();
@@ -168,11 +171,11 @@ async fn run_indexing_job(
         // Try semantic chunking
         let semantic_chunks = parser.parse_semantic_chunks(&file.file_path, &file.content).await;
         
-        let mut chunks: Vec<(String, i32, i32, Option<String>, Option<String>)> = Vec::new();
+        let mut chunks: Vec<(String, i32, i32, Option<String>, Option<String>, Vec<crate::parser::SemanticRelationship>)> = Vec::new();
         
         if !semantic_chunks.is_empty() {
             for sc in semantic_chunks {
-                chunks.push((sc.text, sc.start_line as i32, sc.end_line as i32, Some(sc.kind), sc.name));
+                chunks.push((sc.text, sc.start_line as i32, sc.end_line as i32, Some(sc.kind), sc.name, sc.relationships));
             }
         } else {
             // Simple line-based chunking fallback
@@ -184,14 +187,14 @@ async fn run_indexing_job(
                 let end = (start + chunk_size).min(lines.len());
                 let chunk_text: String = lines[start..end].join("\n");
                 if !chunk_text.trim().is_empty() {
-                    chunks.push((chunk_text, start as i32, end as i32, None, None));
+                    chunks.push((chunk_text, start as i32, end as i32, None, None, Vec::new()));
                 }
                 start += chunk_size - overlap;
             }
         }
 
         let file_chunk_count = chunks.len() as u32;
-        for (i, (text, start_line, end_line, kind, name)) in chunks.into_iter().enumerate() {
+        for (i, (text, start_line, end_line, kind, name, relationships)) in chunks.into_iter().enumerate() {
             chunks_to_process.push(ChunkData {
                 file_path: file.file_path.clone(),
                 text,
@@ -200,6 +203,7 @@ async fn run_indexing_job(
                 chunk_index: i as i32,
                 kind,
                 name,
+                relationships,
             });
         }
 
@@ -290,8 +294,12 @@ async fn run_indexing_job(
 
             state
                 .store
-                .store_chunks(ids, embeddings, metadatas, texts)
+                .store_chunks(folder_path.to_string(), ids, embeddings, metadatas, texts)
                 .await?;
+
+            // Store relationships
+            let all_relationships: Vec<_> = batch.iter().flat_map(|c| c.relationships.clone()).collect();
+            state.store.store_relationships(folder_path.to_string(), all_relationships).await?;
 
             chunks_embedded += batch.len();
             
@@ -365,6 +373,8 @@ pub struct ChatRequest {
     /// The model used for indexing embeddings — may differ from chat model
     #[serde(rename = "embeddingModel")]
     pub embedding_model: Option<String>,
+    #[serde(rename = "workspaceIds")]
+    pub workspace_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -470,7 +480,7 @@ async fn run_chat(
         .ok_or("No embedding generated")?;
 
     // Hybrid search (Vector + Exact Keyword)
-    let search_results = state.store.hybrid_search(query_embedding, &request.query, 20).await?;
+    let search_results = state.store.hybrid_search(query_embedding, &request.query, 20, request.workspace_ids.clone()).await?;
 
     // Extract context chunks and citations
     let documents = search_results
@@ -625,6 +635,14 @@ async fn run_chat(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_graph_data(
+    state: State<'_, Arc<AppState>>,
+    workspace_id: String,
+) -> Result<serde_json::Value, String> {
+    state.store.get_graph_data(&workspace_id).await
+}
+
 // ─── Search ──────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -633,35 +651,31 @@ pub async fn search_files(
     query: String,
     model: String,
     _folder_path: Option<String>,
+    workspace_ids: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
-    // Create a cache key based on model and query
+    // ... (cache logic same)
     let cache_key = format!("{}::{}", model, query);
     
-    // Check cache first
-    let cached_embedding = {
+    let query_embedding = {
         let mut cache = state.query_cache.lock().await;
-        cache.get(&cache_key).cloned()
+        if let Some(emb) = cache.get(&cache_key).cloned() {
+            emb
+        } else {
+            drop(cache);
+            let embeddings = embeddings::generate_embeddings(
+                &[query.clone()],
+                &model,
+                "http://127.0.0.1:11434",
+            )
+            .await?;
+            let emb = embeddings.into_iter().next().ok_or("No embedding")?;
+            let mut cache = state.query_cache.lock().await;
+            cache.put(cache_key, emb.clone());
+            emb
+        }
     };
 
-    let query_embedding = if let Some(emb) = cached_embedding {
-        emb
-    } else {
-        let embeddings = embeddings::generate_embeddings(
-            &[query.clone()],
-            &model,
-            "http://127.0.0.1:11434",
-        )
-        .await?;
-        
-        let emb = embeddings.into_iter().next().ok_or("No embedding")?;
-        
-        // Save to cache
-        let mut cache = state.query_cache.lock().await;
-        cache.put(cache_key, emb.clone());
-        
-        emb
-    };
-    let results = state.store.similarity_search(query_embedding, 10).await?;
+    let results = state.store.similarity_search(query_embedding, 10, workspace_ids).await?;
 
     // Format for the frontend
     let metadatas = results

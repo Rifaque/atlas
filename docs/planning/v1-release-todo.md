@@ -36,8 +36,6 @@ This todo list tracks progress against the [V1 Release Plan](v1-release-plan.md)
 - [x] **Settings 2.0** — Searchable, categorized settings modal
 - [x] **System Status** — Ollama version, disk usage, GPU info
 
----
-
 # The Road to v1.0.0
 
 ## ⚡ Phase 5: Deep OS & Workflow Integration (v0.5.0)
@@ -57,23 +55,23 @@ This todo list tracks progress against the [V1 Release Plan](v1-release-plan.md)
 - [x] **Multi-step Reasoning UI** — Support and visualize "thinking" chains (Chain of Thought), similar to DeepSeek-R1 or OpenAI o1.
 - [x] **Semantic Code Parsing** — Use `tree-sitter` in Rust to index structural code definitions (functions, classes) vs. raw text chunks.
 
-## 🕸️ Phase 7: Knowledge Graph & Context Mastery (v0.7.0)
-- [ ] **GraphRAG Implementation** — Extract entities and relationships to build a semantic knowledge graph of the codebase alongside vectors.
-- [ ] **Project Architecture Visualization** — A Node-Graph UI view to visually navigate the relationships between local project files.
-- [ ] **Cross-Workspace Context** — Ability to seamlessly query across multiple opened workspaces/projects simultaneously.
+## 🕸️ Phase 7: Knowledge Graph & Context Mastery ✅ (v0.7.0)
+- [x] **GraphRAG Implementation** — Extract entities and relationships to build a semantic knowledge graph of the codebase alongside vectors.
+- [x] **Project Architecture Visualization** — A Node-Graph UI view to visually navigate the relationships between local project files.
+- [x] **Cross-Workspace Context** — Ability to seamlessly query across multiple opened workspaces/projects simultaneously.
 
-## 🚀 Phase 8: v1.0.0 Launch Readiness (0.8.0)
-- [ ] **Interactive Onboarding** — A polished first-run setup wizard guiding users through model download and folder selection.
-- [ ] **Accessibility & i18n** — ARIA compliance audit, keyboard navigation matrix, and localization architecture setup.
-- [ ] **Production CI/CD** — Finalizing signed end-to-end Windows, macOS, and Linux builds/installers for a public facing release.
+## 🚀 Phase 8: v1.0.0 Launch Readiness ✅ (0.8.0)
+- [x] **Interactive Onboarding** — A polished first-run setup wizard guiding users through model download and folder selection.
+- [x] **Accessibility & i18n** — ARIA compliance audit, keyboard navigation matrix, and localization architecture setup.
+- [x] **Production CI/CD** — Finalizing signed end-to-end Windows, macOS, and Linux builds/installers for a public facing release.
 
 ## 🪟 Phase 9: Always-On Efficiency (0.9.0)
-- [ ] **System Tray Integration** — Move Atlas to the tray for background indexing and quick wake-up.
-- [ ] **Mini-Chat Overlay** — A lightweight, semi-transparent overlay for quick questions without switching contexts.
-- [ ] **Desktop Analytics Widget** — A dashboard widget showing real-time indexing speed and project "knowledge coverage."
+- [x] **System Tray Integration** — Move Atlas to the tray for background indexing and quick wake-up.
+- [x] **Mini-Chat Overlay** — A lightweight, semi-transparent overlay for quick questions without switching contexts.
+- [x] **Desktop Analytics Widget** — A dashboard widget showing real-time indexing speed and project "knowledge coverage."
 
-## 🎯 Phase 10: The Pre "1.0" Polish (0.10.0)
-- [ ] **Public Documentation** — Create a polished README, quickstart guide, and feature showcase.
+## 🎯 Phase 10: The Pre "1.0" Polish [/] (0.10.0)
+- [/] **Public Documentation** — Create a polished README, quickstart guide, and feature showcase.
 - [ ] **License & Legal** — Finalize MIT license, add NOTICE file, and ensure compliance.
 - [ ] **Performance Benchmarks** — Document startup time, indexing speed, and memory usage.
 - [ ] **Final Bug Bash** — Community-driven testing to squash last-minute issues.

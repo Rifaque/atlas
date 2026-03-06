@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, XCircle, Loader2, Download, RefreshCw, ExternalLink } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 
 const API = 'http://127.0.0.1:47291/api';
+
+type setupStep = 'welcome' | 'dependencies' | 'workspace' | 'done';
 
 interface ModelStatus { name: string; installed: boolean; }
 interface SetupStatus {
@@ -141,6 +144,7 @@ function ModelRow({ model, onPulled }: { model: ModelStatus; onPulled: () => voi
 
 // main setup component
 export function SetupModal({ onDismiss }: { onDismiss: () => void }) {
+    const [step, setStep] = useState<setupStep>('welcome');
     const [status, setStatus] = useState<SetupStatus | null>(null);
     const [checking, setChecking] = useState(true);
 
@@ -157,79 +161,136 @@ export function SetupModal({ onDismiss }: { onDismiss: () => void }) {
 
     const allGood = status ? isAllGood(status) : false;
 
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-[#0f1117] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200 overflow-hidden">
+    const handlePickFolder = async () => {
+        try {
+            const selected = await openDialog({
+                directory: true,
+                multiple: false,
+                title: 'Select a Project to Index'
+            });
+            if (selected) {
+                // In a real flow we'd call the indexing command here
+                // For this wizard, we'll just dismiss and let the landing screen handle it
+                // or we could trigger the same logic as LandingScreen.
+                onDismiss();
+            }
+        } catch (err) {
+            console.error('Folder picker error:', err);
+        }
+    };
 
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-white/8">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/25 flex items-center justify-center">
-                            <span className="text-lg">⚡</span>
-                        </div>
-                        <div>
-                            <h2 className="text-base font-semibold text-white">Setup Check</h2>
-                            <p className="text-xs text-text-secondary mt-0.5">Atlas needs a few things to work properly</p>
-                        </div>
+    const renderWelcome = () => (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+            <div className="aspect-video rounded-xl bg-gradient-to-br from-accent/20 to-purple-500/10 border border-white/5 flex items-center justify-center overflow-hidden">
+                <div className="relative">
+                    <div className="absolute inset-0 blur-2xl bg-accent/20 rounded-full animate-pulse" />
+                    <span className="text-4xl relative">🏔️</span>
+                </div>
+            </div>
+            <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-white">Welcome to Atlas</h3>
+                <p className="text-sm text-text-secondary leading-relaxed">
+                    Atlas is your local-first AI coding companion. Let's get everything ready for your first workspace.
+                </p>
+            </div>
+            <button
+                onClick={() => setStep('dependencies')}
+                className="w-full py-2.5 bg-accent text-white rounded-xl font-semibold hover:bg-accent/90 transition-all flex items-center justify-center gap-2 group"
+            >
+                Get Started
+                <ExternalLink size={14} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
+        </div>
+    );
+
+    const renderDependencies = () => (
+        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-white">Environment Check</h3>
+                <p className="text-xs text-text-secondary">We need Ollama and the Llama 3.2 model installed.</p>
+            </div>
+            <div className="bg-white/[0.02] border border-white/5 rounded-xl p-1 divide-y divide-white/5">
+                {checking && !status ? (
+                    <div className="flex items-center gap-2 text-text-secondary text-xs px-4 py-4">
+                        <Loader2 size={14} className="animate-spin" /> Verifying environment…
                     </div>
-                </div>
-
-                {/* Body */}
-                <div className="px-6 py-4">
-                    {checking && !status ? (
-                        <div className="flex items-center gap-2 text-text-secondary text-sm py-4">
-                            <Loader2 size={16} className="animate-spin" /> Checking dependencies…
-                        </div>
-                    ) : status ? (
-                        <div>
-                            {/* Ollama */}
-                            <StatusRow ok={status.ollamaOk} label="Ollama is running">
-                                <button
-                                    onClick={() => openShell('https://ollama.com/download').catch(console.error)}
-                                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-accent/15 border border-accent/30 text-accent hover:bg-accent/25 transition-all shrink-0"
-                                >
-                                    <ExternalLink size={12} /> Download Ollama
-                                </button>
-                            </StatusRow>
-
-                            {/* Models */}
-                            {status.models.map(m => (
-                                <ModelRow key={m.name} model={m} onPulled={check} />
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-red-400 py-4">Could not reach the Atlas backend. Make sure it is running.</p>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-white/8 flex items-center justify-between gap-3">
-                    <button
-                        onClick={check}
-                        className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-white transition-colors"
-                    >
-                        <RefreshCw size={12} className={checking ? 'animate-spin' : ''} /> Re-check
-                    </button>
-                    <div className="flex items-center gap-2">
-                        {!allGood && (
+                ) : status && (
+                    <>
+                        <StatusRow ok={status.ollamaOk} label="Ollama is running">
                             <button
-                                onClick={onDismiss}
-                                className="text-xs text-text-secondary hover:text-white px-4 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                                onClick={() => openShell('https://ollama.com/download').catch(console.error)}
+                                className="text-[10px] font-medium px-2 py-1 rounded bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all"
                             >
-                                Skip for now
+                                Get Ollama
                             </button>
-                        )}
-                        <button
-                            onClick={onDismiss}
-                            disabled={!allGood}
-                            className={`text-xs font-semibold px-5 py-2 rounded-lg transition-all ${allGood
-                                ? 'bg-accent text-white hover:bg-accent/80'
-                                : 'bg-white/5 text-text-secondary cursor-not-allowed'
-                                }`}
-                        >
-                            {allGood ? '✓ All set — Continue' : 'Continue'}
-                        </button>
+                        </StatusRow>
+                        {status.models.map(m => (
+                            <ModelRow key={m.name} model={m} onPulled={check} />
+                        ))}
+                    </>
+                )}
+            </div>
+            <div className="flex gap-2">
+                <button
+                    onClick={() => setStep('welcome')}
+                    className="flex-1 py-2 text-xs font-semibold text-text-secondary hover:text-white transition-colors"
+                >
+                    Back
+                </button>
+                <button
+                    disabled={!allGood}
+                    onClick={() => setStep('workspace')}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${allGood ? 'bg-accent text-white' : 'bg-white/5 text-text-secondary cursor-not-allowed'}`}
+                >
+                    Continue
+                </button>
+            </div>
+        </div>
+    );
+
+    const renderWorkspace = () => (
+        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-white">Your First Workspace</h3>
+                <p className="text-xs text-text-secondary">Select a folder to index. You can always add more later.</p>
+            </div>
+            <div className="aspect-square w-full rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 bg-white/[0.01]">
+                <div className="w-12 h-12 rounded-full bg-accent/5 flex items-center justify-center text-accent">
+                    <Download size={24} />
+                </div>
+                <p className="text-xs text-text-secondary text-center px-8">
+                    Select your project folder to start the indexing process.
+                </p>
+                <button
+                    onClick={handlePickFolder}
+                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-xs font-medium border border-white/10 transition-all"
+                >
+                    Select Folder
+                </button>
+            </div>
+            <p className="text-[10px] text-text-secondary/50 text-center">
+                Indexing happens entirely on your machine. No code leaves your system.
+            </p>
+        </div>
+    );
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div className="bg-[#0a0c10] border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+                <div className="p-6">
+                    {step === 'welcome' && renderWelcome()}
+                    {step === 'dependencies' && renderDependencies()}
+                    {step === 'workspace' && renderWorkspace()}
+                </div>
+                <div className="px-6 py-3 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
+                    <div className="flex gap-1.5">
+                        {(['welcome', 'dependencies', 'workspace'] as setupStep[]).map(s => (
+                            <div key={s} className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${step === s ? 'bg-accent w-4' : 'bg-white/10'}`} />
+                        ))}
                     </div>
+                    <button onClick={onDismiss} className="text-[10px] text-text-secondary hover:text-white transition-colors lowercase">
+                        Skip Onboarding
+                    </button>
                 </div>
             </div>
         </div>
@@ -243,8 +304,8 @@ export function useSetupModal(backendOnline: boolean) {
 
     useEffect(() => {
         if (!backendOnline) return;
-        // Only show once per app session (not every launch after dismiss)
-        const dismissed = sessionStorage.getItem(SETUP_KEY);
+        // Persistence: Use localStorage for V1 so it doesn't show up every launch
+        const dismissed = localStorage.getItem(SETUP_KEY);
         if (dismissed) return;
         // Small delay so the app renders first
         const t = setTimeout(async () => {
@@ -259,7 +320,7 @@ export function useSetupModal(backendOnline: boolean) {
     }, [backendOnline]);
 
     const dismiss = () => {
-        sessionStorage.setItem(SETUP_KEY, '1');
+        localStorage.setItem(SETUP_KEY, '1');
         setShow(false);
     };
 

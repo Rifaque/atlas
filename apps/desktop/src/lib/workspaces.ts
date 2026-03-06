@@ -11,7 +11,7 @@ export interface Workspace {
 }
 
 const KEY = 'atlas_workspaces';
-const ACTIVE_KEY = 'atlas_active_workspace';
+const ACTIVE_KEY = 'atlas_active_workspaces';
 
 export function loadWorkspaces(): Workspace[] {
     try {
@@ -54,16 +54,43 @@ export function removeWorkspace(id: string): Workspace[] {
     return all;
 }
 
-export function getActiveWorkspaceId(): string | null {
-    return localStorage.getItem(ACTIVE_KEY);
+export function getActiveWorkspaceIds(): string[] {
+    try {
+        const raw = localStorage.getItem(ACTIVE_KEY);
+        if (raw) return JSON.parse(raw);
+
+        // Migration: check legacy single workspace key
+        const legacy = localStorage.getItem('atlas_active_workspace');
+        if (legacy) {
+            const ids = [legacy];
+            setActiveWorkspaceIds(ids);
+            localStorage.removeItem('atlas_active_workspace');
+            return ids;
+        }
+        return [];
+    } catch {
+        return [];
+    }
 }
 
-export function setActiveWorkspaceId(id: string): void {
-    localStorage.setItem(ACTIVE_KEY, id);
+export function setActiveWorkspaceIds(ids: string[]): void {
+    localStorage.setItem(ACTIVE_KEY, JSON.stringify(ids));
 }
 
-export function getActiveWorkspace(): Workspace | null {
-    const id = getActiveWorkspaceId();
-    if (!id) return null;
-    return loadWorkspaces().find(w => w.id === id) ?? null;
+export function toggleActiveWorkspaceId(id: string): string[] {
+    const active = getActiveWorkspaceIds();
+    const idx = active.indexOf(id);
+    if (idx >= 0) {
+        active.splice(idx, 1);
+    } else {
+        active.push(id);
+    }
+    setActiveWorkspaceIds(active);
+    return active;
+}
+
+export function getActiveWorkspaces(): Workspace[] {
+    const ids = getActiveWorkspaceIds();
+    const all = loadWorkspaces();
+    return all.filter(w => ids.includes(w.id));
 }

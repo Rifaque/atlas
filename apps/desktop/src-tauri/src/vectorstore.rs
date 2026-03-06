@@ -70,12 +70,24 @@ impl AtlasVectorStore {
             Field::new("parentLineRangeEnd", DataType::Int32, false),
             Field::new("kind", DataType::Utf8, true),
             Field::new("name", DataType::Utf8, true),
+            Field::new("workspaceId", DataType::Utf8, false),
+        ]))
+    }
+
+    fn edges_schema() -> Arc<Schema> {
+        Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("fromName", DataType::Utf8, false),
+            Field::new("toName", DataType::Utf8, false),
+            Field::new("kind", DataType::Utf8, false),
+            Field::new("workspaceId", DataType::Utf8, false),
         ]))
     }
 
     /// Store chunks with their embeddings
     pub async fn store_chunks(
         &self,
+        workspace_id: String,
         ids: Vec<String>,
         embeddings: Vec<Vec<f32>>,
         metadatas: Vec<StoredChunkMetadata>,
@@ -139,6 +151,9 @@ impl AtlasVectorStore {
                 .map(|m| m.name.clone().unwrap_or_default())
                 .collect::<Vec<_>>(),
         )) as Arc<dyn Array>;
+        let ws_id_array = Arc::new(StringArray::from(
+            vec![workspace_id; metadatas.len()]
+        )) as Arc<dyn Array>;
 
         // Build vector array (FixedSizeList of Float32)
         let flat_values: Vec<f32> = embeddings.iter().flatten().copied().collect();
@@ -168,6 +183,7 @@ impl AtlasVectorStore {
                 plr_end_array,
                 kind_array,
                 name_array,
+                ws_id_array,
             ],
         )
         .map_err(|e| format!("Failed to create record batch: {}", e))?;
@@ -181,7 +197,7 @@ impl AtlasVectorStore {
             .await
             .map_err(|e| format!("Failed to list tables: {}", e))?;
 
-        let table_name = format!("atlas_{}", vector_length);
+        let table_name = format!("atlas_v2_{}", vector_length);
 
         if table_names.contains(&table_name) {
             let table = db
@@ -204,11 +220,58 @@ impl AtlasVectorStore {
         Ok(())
     }
 
+    /// Store semantic relationships between entities
+    pub async fn store_relationships(
+        &self,
+        workspace_id: String,
+        relationships: Vec<crate::parser::SemanticRelationship>,
+    ) -> Result<(), String> {
+        if relationships.is_empty() {
+            return Ok(());
+        }
+
+        let schema = Self::edges_schema();
+        let db = connect(&self.db_path).execute().await.map_err(|e| e.to_string())?;
+
+        let ids: Vec<String> = (0..relationships.len()).map(|_| uuid::Uuid::new_v4().to_string()).collect();
+        let from_names: Vec<String> = relationships.iter().map(|r| r.from_name.clone()).collect();
+        let to_names: Vec<String> = relationships.iter().map(|r| r.to_name.clone()).collect();
+        let kinds: Vec<String> = relationships.iter().map(|r| r.kind.clone()).collect();
+        let ws_ids: Vec<String> = vec![workspace_id; relationships.len()];
+
+        let id_array = Arc::new(StringArray::from(ids)) as Arc<dyn Array>;
+        let from_array = Arc::new(StringArray::from(from_names)) as Arc<dyn Array>;
+        let to_array = Arc::new(StringArray::from(to_names)) as Arc<dyn Array>;
+        let kind_array = Arc::new(StringArray::from(kinds)) as Arc<dyn Array>;
+        let ws_array = Arc::new(StringArray::from(ws_ids)) as Arc<dyn Array>;
+
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![id_array, from_array, to_array, kind_array, ws_array],
+        ).map_err(|e| e.to_string())?;
+
+        let batches = RecordBatchIterator::new(vec![Ok(batch)], schema.clone());
+        let table_names = db.table_names().execute().await.map_err(|e| e.to_string())?;
+
+        if table_names.contains(&"atlas_v2_edges".to_string()) {
+            let table = db.open_table("atlas_v2_edges").execute().await.map_err(|e| e.to_string())?;
+            table.add(batches).execute().await.map_err(|e| e.to_string())?;
+        } else {
+            db.create_table("atlas_v2_edges", batches)
+                .execute()
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
+
     /// Search for similar vectors
     pub async fn similarity_search(
         &self,
         query_embedding: Vec<f32>,
         n_results: usize,
+        workspace_ids: Option<Vec<String>>,
     ) -> Result<serde_json::Value, String> {
         let db = connect(&self.db_path)
             .execute()
@@ -222,7 +285,7 @@ impl AtlasVectorStore {
             .map_err(|e| format!("Table names error: {}", e))?;
 
         let vector_length = query_embedding.len();
-        let table_name = format!("atlas_{}", vector_length);
+        let table_name = format!("atlas_v2_{}", vector_length);
 
         if !table_names.contains(&table_name) {
             return Ok(serde_json::json!({
@@ -236,9 +299,19 @@ impl AtlasVectorStore {
             .await
             .map_err(|e| format!("Open table error: {}", e))?;
 
-        let results = table
-            .vector_search(query_embedding)
-            .map_err(|e| format!("Vector search error: {}", e))?
+        let mut query = table.vector_search(query_embedding).map_err(|e| e.to_string())?;
+        
+        if let Some(ids) = workspace_ids {
+            if !ids.is_empty() {
+                let filter = ids.iter()
+                    .map(|id| format!("`workspaceId` = '{}'", id.replace('\'', "''")))
+                    .collect::<Vec<_>>()
+                    .join(" OR ");
+                query = query.only_if(filter);
+            }
+        }
+
+        let results = query
             .limit(n_results)
             .execute()
             .await
@@ -380,6 +453,7 @@ impl AtlasVectorStore {
         query_embedding: Vec<f32>,
         query_text: &str,
         n_results: usize,
+        workspace_ids: Option<Vec<String>>,
     ) -> Result<serde_json::Value, String> {
         let db = connect(&self.db_path)
             .execute()
@@ -393,7 +467,7 @@ impl AtlasVectorStore {
             .map_err(|e| format!("Table names error: {}", e))?;
 
         let vector_length = query_embedding.len();
-        let table_name = format!("atlas_{}", vector_length);
+        let table_name = format!("atlas_v2_{}", vector_length);
 
         if !table_names.contains(&table_name) {
             return Ok(serde_json::json!({
@@ -408,9 +482,19 @@ impl AtlasVectorStore {
             .map_err(|e| format!("Open table error: {}", e))?;
 
         // 1. DENSE VECTOR SEARCH
-        let sim_results = table
-            .vector_search(query_embedding)
-            .map_err(|e| format!("Vector search error: {}", e))?
+        let mut sim_query = table.vector_search(query_embedding).map_err(|e| e.to_string())?;
+        
+        if let Some(ref ids) = workspace_ids {
+            if !ids.is_empty() {
+                let filter = ids.iter()
+                    .map(|id| format!("`workspaceId` = '{}'", id.replace('\'', "''")))
+                    .collect::<Vec<_>>()
+                    .join(" OR ");
+                sim_query = sim_query.only_if(filter);
+            }
+        }
+
+        let sim_results = sim_query
             .limit(n_results)
             .execute()
             .await
@@ -426,11 +510,23 @@ impl AtlasVectorStore {
         keywords.truncate(20); // Limit to top 20 keywords to prevent stack overflow in filter logic
 
         if !keywords.is_empty() {
-            // Build the datafusion filter: `document ILIKE '%keyword1%' AND document ILIKE '%keyword2%'`
-            let filter_parts: Vec<String> = keywords.iter()
-                .map(|k| format!("document ILIKE '%{}%'", k.replace('\'', "''")))
+            let filter_parts: Vec<_> = keywords.iter()
+                .map(|k| format!("`text` ILIKE '%{}%'", k.replace('\'', "''")))
                 .collect();
-            let filter_query = filter_parts.join(" OR "); // Using OR to be more forgiving, ranking will handle relevance
+
+            let filter_query = if let Some(ref ids) = workspace_ids {
+                if !ids.is_empty() {
+                    let ws_filter = ids.iter()
+                        .map(|id| format!("`workspaceId` = '{}'", id.replace('\'', "''")))
+                        .collect::<Vec<_>>()
+                        .join(" OR ");
+                    format!("({}) AND ({})", ws_filter, filter_parts.join(" OR "))
+                } else {
+                    filter_parts.join(" OR ")
+                }
+            } else {
+                filter_parts.join(" OR ")
+            };
 
             let exact_results = table
                 .query()
@@ -509,7 +605,7 @@ impl AtlasVectorStore {
         let filter = format!("`filePath` = '{}'", file_path.replace('\'', "''"));
 
         for table_name in table_names {
-            if table_name.starts_with("atlas_") {
+            if table_name.starts_with("atlas_v2_") {
                 let table = db
                     .open_table(&table_name)
                     .execute()
@@ -541,7 +637,7 @@ impl AtlasVectorStore {
 
         let mut total = 0;
         for table_name in table_names {
-            if table_name.starts_with("atlas_") {
+            if table_name.starts_with("atlas_v2_") {
                 let table = db
                     .open_table(&table_name)
                     .execute()
@@ -559,6 +655,66 @@ impl AtlasVectorStore {
         Ok(total)
     }
 
+    /// Get graph data (nodes and edges) for a workspace
+    pub async fn get_graph_data(&self, workspace_id: &str) -> Result<serde_json::Value, String> {
+        let db = connect(&self.db_path).execute().await.map_err(|e| e.to_string())?;
+        
+        // 1. Get Edges
+        let mut edges = Vec::new();
+        if db.table_names().execute().await.unwrap_or_default().contains(&"atlas_v2_edges".to_string()) {
+            let table = db.open_table("atlas_v2_edges").execute().await.map_err(|e| e.to_string())?;
+            let filter = format!("`workspaceId` = '{}'", workspace_id.replace('\'', "''"));
+            let results = table.query().only_if(filter).execute().await.map_err(|e| e.to_string())?;
+            let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results).await.map_err(|e| e.to_string())?;
+            
+            for batch in batches {
+                let from_col = batch.column_by_name("fromName").and_then(|c| c.as_any().downcast_ref::<StringArray>());
+                let to_col = batch.column_by_name("toName").and_then(|c| c.as_any().downcast_ref::<StringArray>());
+                let kind_col = batch.column_by_name("kind").and_then(|c| c.as_any().downcast_ref::<StringArray>());
+                
+                for i in 0..batch.num_rows() {
+                    edges.push(serde_json::json!({
+                        "from": from_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                        "to": to_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                        "kind": kind_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                    }));
+                }
+            }
+        }
+
+        // 2. Get Nodes (from chunks that have names)
+        let mut nodes = std::collections::HashMap::new();
+        let table_names = db.table_names().execute().await.unwrap_or_default();
+        for tn in table_names {
+            if tn.starts_with("atlas_v2_") && tn != "atlas_v2_edges" {
+                let table = db.open_table(&tn).execute().await.map_err(|e| e.to_string())?;
+                let filter = format!("`workspaceId` = '{}' AND `name` != ''", workspace_id.replace('\'', "''"));
+                let results = table.query().only_if(filter).execute().await.map_err(|e| e.to_string())?;
+                let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results).await.map_err(|e| e.to_string())?;
+                
+                for batch in batches {
+                    let name_col = batch.column_by_name("name").and_then(|c| c.as_any().downcast_ref::<StringArray>());
+                    let kind_col = batch.column_by_name("kind").and_then(|c| c.as_any().downcast_ref::<StringArray>());
+                    let fp_col = batch.column_by_name("filePath").and_then(|c| c.as_any().downcast_ref::<StringArray>());
+                    
+                    for i in 0..batch.num_rows() {
+                        let name = name_col.map(|c| c.value(i).to_string()).unwrap_or_default();
+                        nodes.insert(name.clone(), serde_json::json!({
+                            "id": name,
+                            "kind": kind_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                            "filePath": fp_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                        }));
+                    }
+                }
+            }
+        }
+
+        Ok(serde_json::json!({
+            "nodes": nodes.values().collect::<Vec<_>>(),
+            "edges": edges,
+        }))
+    }
+
     /// Drop the table (reset)
     #[allow(dead_code)]
     pub async fn reset(&self) -> Result<(), String> {
@@ -574,7 +730,7 @@ impl AtlasVectorStore {
             .unwrap_or_default();
 
         for table_name in table_names {
-            if table_name.starts_with("atlas_") {
+            if table_name.starts_with("atlas_v2_") {
                 db.drop_table(&table_name)
                     .await
                     .map_err(|e| format!("Drop table error: {}", e))?;

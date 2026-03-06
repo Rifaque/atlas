@@ -1,0 +1,28 @@
+﻿cargo :     Blocking 
+waiting for file lock 
+on package cache
+At line:1 char:1
++ cargo check 2>&1 | 
+Out-File -FilePath 
+cargo_check_utf8.txt 
+-Encoding  ...
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (    Blocking    
+ wa...n package cac    
+he:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+    Checking app 
+v0.6.0 (C:\Users\rifaq\
+Documents\Projects\atla
+s\apps\desktop\src-taur
+i)
+    Finished `dev` 
+profile [unoptimized + 
+debuginfo] target(s) 
+in 17.31s

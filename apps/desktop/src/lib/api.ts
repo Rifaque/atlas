@@ -103,6 +103,8 @@ export interface ChatRequest {
     webSearchProvider?: string;
     /** Vision: Attach images as base64 encoded strings */
     images?: string[];
+    /** GraphRAG: Search across multiple workspace IDs */
+    workspaceIds?: string[];
 }
 
 /** Start a chat and return the event ID + unlisten function. */
@@ -129,12 +131,13 @@ export interface SearchResult {
     lineRangeStart?: number;
 }
 
-export async function searchFiles(query: string, model: string, folderPath?: string): Promise<SearchResult[]> {
+export async function searchFiles(query: string, model: string, folderPath?: string, workspaceIds?: string[]): Promise<SearchResult[]> {
     try {
         return await invoke<SearchResult[]>('search_files', {
             query,
             model,
             folderPath: folderPath || null,
+            workspaceIds: workspaceIds || null,
         });
     } catch {
         return [];

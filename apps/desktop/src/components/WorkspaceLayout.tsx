@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -7,7 +8,7 @@ import {
     Search, MessageSquare, Send, PanelLeftClose, PanelLeft, Bot,
     FileText, Loader2, PlusCircle, Plus, X, Pin, Trash2, Pencil,
     Check, Copy, Settings, StopCircle, Download, GitBranch, RefreshCcw, ArrowDown,
-    Maximize2, Minimize2, Sun, Moon, Image as ImageIcon
+    Maximize2, Minimize2, Sun, Moon, Image as ImageIcon, Activity
 } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { searchFiles, fetchFileTree, fetchIndexStats, fetchModels, fetchOpenRouterModels, startChat, checkOllamaStatus, scanSecrets, fetchTimeline, startWatcher, stopWatcher, fetchGitContext, type SearchResult, type FileNode, type SecretMatch } from '../lib/api';
@@ -25,6 +26,8 @@ import { toggleTheme, getCurrentTheme, setTheme } from '../lib/theme';
 import { PERSONAS, getPersona, type Persona } from '../lib/personas';
 import { ModelSelector } from './ModelSelector';
 import { CodeDiffProposed } from './CodeDiffProposed';
+import ArchitectureGraph from './ArchitectureGraph';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
 
 // code block that you can click to copy
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -118,17 +121,19 @@ function ThinkBlock({ content, isComplete }: { content: string, isComplete: bool
 
 // main workspace layout
 interface WorkspaceLayoutProps {
-    workspace: Workspace;
+    workspaces: Workspace[];
     onLeaveWorkspace: () => void;
 }
 
-export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayoutProps) {
+export function WorkspaceLayout({ workspaces, onLeaveWorkspace }: WorkspaceLayoutProps) {
+    const { t } = useTranslation();
+    const primaryWorkspace = workspaces[0];
     // Settings
     const [settings, setSettings] = useState<AtlasSettings>(loadSettings);
     const [showSettings, setShowSettings] = useState(false);
     const [indexedChunks, setIndexedChunks] = useState<number | undefined>();
     // backendUrl no longer needed — all calls go through Tauri IPC
-    const model = settings.model || workspace.model;
+    const model = settings.model || primaryWorkspace.model;
     const provider = settings.provider ?? 'ollama';
     const apiKey = settings.openRouterApiKey ?? '';
 
@@ -138,7 +143,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         const saved = localStorage.getItem('atlas-zen-mode');
         return saved !== null ? saved === 'true' : true; // default ON
     });
-    const [leftTab, setLeftTab] = useState<'search' | 'files' | 'active'>('search');
+    const [leftTab, setLeftTab] = useState<'search' | 'files' | 'active' | 'architecture' | 'analytics'>('search');
     const [previewFile, setPreviewFile] = useState<{ filePath: string; lineStart?: number } | null>(null);
     const [overrideModel, setOverrideModel] = useState<string>(''); // For multi-model routing
     const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -188,11 +193,15 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
     // File Watcher
     useEffect(() => {
-        startWatcher(workspace.folderPath, workspace.model).catch(console.error);
+        workspaces.forEach(ws => {
+            startWatcher(ws.folderPath, ws.model).catch(console.error);
+        });
         return () => {
-            stopWatcher(workspace.folderPath).catch(console.error);
+            workspaces.forEach(ws => {
+                stopWatcher(ws.folderPath).catch(console.error);
+            });
         };
-    }, [workspace.folderPath, workspace.model]);
+    }, [workspaces]);
 
     // Search
     const [searchQuery, setSearchQuery] = useState('');
@@ -219,15 +228,15 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
     // Migration: Update 'llama3' to 'llama3.2:latest' automatically if it's the exact match
     useEffect(() => {
-        if (workspace.model === 'llama3') {
-            patchWorkspace(workspace.id, { model: 'llama3.2:latest' });
+        if (primaryWorkspace.model === 'llama3') {
+            patchWorkspace(primaryWorkspace.id, { model: 'llama3.2:latest' });
         }
         if (settings.model === 'llama3') {
             const next = { ...settings, model: 'llama3.2:latest' };
             setSettings(next);
             persistSettings(next);
         }
-    }, [workspace.id, workspace.model, settings.model]);
+    }, [primaryWorkspace.id, primaryWorkspace.model, settings.model]);
 
     // Load chats on mount
     useEffect(() => {
@@ -325,7 +334,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
         if (!searchQuery.trim()) return;
         setIsSearching(true);
         try {
-            const r = await searchFiles(searchQuery, workspace.model, workspace.folderPath);
+            const workspaceIds = workspaces.map(w => w.id);
+            const r = await searchFiles(searchQuery, primaryWorkspace.model, primaryWorkspace.folderPath, workspaceIds);
             setSearchResults(r);
             if (r.length === 0) toast('No files matched your query', 'info');
         } catch { toast('Search failed', 'error'); }
@@ -335,7 +345,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     const handleLoadFileTree = async () => {
         if (treeLoaded) return;
         setTreeLoaded(true);
-        const tree = await fetchFileTree(workspace.folderPath);
+        // Load tree for the primary workspace (can be extended to show multiple)
+        const tree = await fetchFileTree(primaryWorkspace.folderPath);
         setFileTree(tree);
     };
 
@@ -382,7 +393,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
     const handleTimeline = async (hours: number = 24) => {
         if (!activeSession) return;
         try {
-            const events = await fetchTimeline(workspace.folderPath, hours);
+            const events = await fetchTimeline(primaryWorkspace.folderPath, hours);
             if (events.length === 0) {
                 toast('No recent changes found.', 'info');
                 return;
@@ -488,7 +499,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
             let dynamicSystemPrompt = settings.systemPrompt || '';
             try {
-                const gitCtx = await fetchGitContext(workspace.folderPath);
+                const gitCtx = await fetchGitContext(primaryWorkspace.folderPath);
                 if (gitCtx) {
                     const gitInfo = `--- Git Context ---\nActive Branch: ${gitCtx.branch}\nUncommitted Files: ${gitCtx.uncommitted_files.length ? gitCtx.uncommitted_files.join(', ') : 'None'}\nDiff Summary: ${gitCtx.diff_summary || 'No changes'}\nRecent Commits: ${gitCtx.recent_commits.join(' | ') || 'None'}\n-------------------`;
                     dynamicSystemPrompt = dynamicSystemPrompt ? `${dynamicSystemPrompt}\n\n${gitInfo}` : gitInfo;
@@ -506,9 +517,10 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                     ollamaHost: provider === 'ollama' ? settings.ollamaHost : undefined,
                     manualFiles: activeSession.manualContext || [],
                     systemPrompt: dynamicSystemPrompt,
-                    folderPath: workspace.folderPath,
+                    folderPath: primaryWorkspace.folderPath,
+                    workspaceIds: workspaces.map(ws => ws.folderPath),
                     history,
-                    embeddingModel: workspace.model, // match indexed vector dimensions
+                    embeddingModel: primaryWorkspace.model, // match indexed vector dimensions
                     persona: activePersona !== 'default' ? activePersona : undefined,
                     webSearchEnabled: settings.webSearchEnabled || false,
                     webSearchApiKey: settings.webSearchEnabled ? settings.webSearchApiKey : undefined,
@@ -713,8 +725,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                 <div className="p-3 border-b border-glass-border flex items-center justify-between whitespace-nowrap">
                     <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Chats</span>
                     <div className="flex items-center gap-1">
-                        <button onClick={handleNewChat} data-tooltip="New Chat (Ctrl+K)" className="p-1 text-text-secondary hover:text-white transition-colors" title=""><PlusCircle size={14} /></button>
-                        <button onClick={handleExportChat} data-tooltip="Export Chat" className="p-1 text-text-secondary hover:text-text-primary transition-colors" title=""><Download size={14} /></button>
+                        <button onClick={handleNewChat} aria-label={t('chat.newChat')} data-tooltip={`${t('chat.newChat')} (Ctrl+K)`} className="p-1 text-text-secondary hover:text-white transition-colors"><PlusCircle size={14} /></button>
+                        <button onClick={handleExportChat} aria-label={t('chat.export')} data-tooltip={t('chat.export')} className="p-1 text-text-secondary hover:text-text-primary transition-colors"><Download size={14} /></button>
                         <button
                             onClick={() => { const next = toggleTheme(); setCurrentTheme(next === 'dark' ? 'dark' : 'light'); }}
                             data-tooltip="Toggle Theme"
@@ -723,8 +735,8 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                         >
                             {currentTheme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
                         </button>
-                        <button onClick={() => setShowSettings(true)} data-tooltip="Settings (Ctrl+,)" className="p-1 text-text-secondary hover:text-text-primary transition-colors" title=""><Settings size={14} /></button>
-                        <button onClick={() => setSidebarOpen(false)} data-tooltip="Collapse" className="p-1 text-text-secondary hover:text-white transition-colors" title=""><PanelLeftClose size={14} /></button>
+                        <button onClick={() => setShowSettings(true)} aria-label={t('settings.title')} data-tooltip={`${t('settings.title')} (Ctrl+,)`} className="p-1 text-text-secondary hover:text-text-primary transition-colors"><Settings size={14} /></button>
+                        <button onClick={() => setSidebarOpen(false)} aria-label="Collapse Sidebar" data-tooltip="Collapse" className="p-1 text-text-secondary hover:text-white transition-colors"><PanelLeftClose size={14} /></button>
                     </div>
                 </div>
 
@@ -766,10 +778,10 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                         )}
                     </div>
                     <div className="flex items-center justify-between text-text-secondary">
-                        <span className="truncate opacity-70">{workspace.name}</span>
+                        <span className="truncate opacity-70">{primaryWorkspace.name}</span>
                         <span className="font-mono text-[10px] bg-glass-bg px-1.5 py-0.5 rounded border border-glass-border ml-1 shrink-0">{model}</span>
                     </div>
-                    <button onClick={onLeaveWorkspace} className="w-full text-left text-text-secondary/50 hover:text-text-secondary text-[10px] transition-colors">← Switch Workspace</button>
+                    <button onClick={onLeaveWorkspace} className="w-full text-left text-text-secondary/50 hover:text-text-secondary text-[10px] transition-colors">{t('workspace.switch')}</button>
                 </div>
             </aside>
 
@@ -786,12 +798,25 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                         <PanelLeft size={14} />
                                     </button>
                                 )}
-                                {(['search', 'files', 'active'] as const).map(tab => (
-                                    <button key={tab} onClick={() => { setLeftTab(tab); if (tab === 'files' && !treeLoaded) handleLoadFileTree(); }}
-                                        className={`flex-1 py-2.5 capitalize transition-colors ${leftTab === tab ? 'text-accent border-b-2 border-accent' : 'text-text-secondary hover:text-text-primary'} ${tab === 'search' && !sidebarOpen ? 'pl-7' : ''}`}>
-                                        {tab === 'active' ? 'Context' : tab}
-                                    </button>
-                                ))}
+                                {(['search', 'files', 'active', 'architecture', 'analytics'] as const).map(tab => {
+                                    const Icon = tab === 'search' ? Search
+                                        : tab === 'files' ? FileText
+                                            : tab === 'active' ? Pin
+                                                : tab === 'architecture' ? GitBranch
+                                                    : Activity;
+                                    const label = tab === 'active' ? 'Context' : tab === 'architecture' ? 'Graph' : tab === 'analytics' ? 'Insights' : tab;
+
+                                    return (
+                                        <button key={tab}
+                                            onClick={() => { setLeftTab(tab); if (tab === 'files' && !treeLoaded) handleLoadFileTree(); }}
+                                            className={`flex-1 py-1.5 flex flex-col items-center gap-1 capitalize transition-all border-b-2 ${leftTab === tab ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-white/[0.02]'}`}
+                                            title={label}
+                                        >
+                                            <Icon size={14} />
+                                            <span className="text-[9px] font-medium tracking-tight truncate w-full text-center">{label}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             {/* Search Tab */}
@@ -902,6 +927,42 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                     </div>
                                 </div>
                             )}
+
+                            {/* Architecture Tab */}
+                            {leftTab === 'architecture' && (
+                                <div className="flex-1 p-4 overflow-hidden flex flex-col">
+                                    <div className="flex items-center justify-between mb-4 shrink-0">
+                                        <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-tight">Project Architecture</h3>
+                                        <div className="text-[10px] text-accent font-medium bg-accent/5 px-2 py-0.5 rounded border border-accent/20">
+                                            V1 GRAPH
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-h-0">
+                                        <ArchitectureGraph workspaceId={primaryWorkspace.folderPath} />
+                                    </div>
+                                    <div className="mt-4 p-3 rounded-lg border border-white/5 bg-white/[0.02] space-y-2 shrink-0">
+                                        <div className="flex items-center gap-2 text-[10px] text-text-secondary">
+                                            <Search size={10} className="text-accent" />
+                                            <span>The graph shows relationships extracted during indexing.</span>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-[10px]">
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                                <span className="text-text-secondary">Functions</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                <span className="text-text-secondary">Classes/Structs</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Analytics Tab */}
+                            {leftTab === 'analytics' && (
+                                <AnalyticsDashboard />
+                            )}
                         </section>
                     </Panel>
                 )}
@@ -981,7 +1042,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                             {[
                                                 { icon: <RefreshCcw size={12} />, text: "Summarize recent changes", query: "Summarize the recent changes made to this workspace." },
                                                 { icon: <Search size={12} />, text: "Find security issues", query: "Can you scan this workspace for any obvious security vulnerabilities?" },
-                                                { icon: <FileText size={12} />, text: "Explain the architecture", query: "Explain the high-level architecture of this project." }
+                                                { icon: <FileText size={12} />, text: "Explain the architecture", query: `Explain the high-level architecture of the ${primaryWorkspace.name} project.` }
                                             ].map((action, i) => (
                                                 <button
                                                     key={i}
@@ -1128,6 +1189,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
 
                                 <textarea
                                     id="chat-input"
+                                    aria-label="Chat input"
                                     value={inputQuery}
                                     onChange={handleTextareaInput}
                                     onKeyDown={handleKeyDown}
@@ -1155,7 +1217,7 @@ export function WorkspaceLayout({ workspace, onLeaveWorkspace }: WorkspaceLayout
                                         >
                                             <ImageIcon size={14} />
                                         </button>
-                                        <span className="text-[9px] text-text-secondary/60 font-bold tracking-widest uppercase">{workspace.name}</span>
+                                        <span className="text-[9px] text-text-secondary/60 font-bold tracking-widest uppercase">{primaryWorkspace.name}</span>
                                         <ModelSelector
                                             value={overrideModel}
                                             onChange={setOverrideModel}

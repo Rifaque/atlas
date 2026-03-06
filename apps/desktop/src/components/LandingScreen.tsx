@@ -5,7 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { FolderOpen, Cpu, Loader2, AlertCircle, CheckCircle, Plus, Trash2, ExternalLink, Compass } from 'lucide-react';
 import { fetchModels, checkOllamaStatus, startIndexing, listenIndexProgress, fetchOpenRouterModels } from '../lib/api';
 import {
-    loadWorkspaces, addOrUpdateWorkspace, removeWorkspace, setActiveWorkspaceId, patchWorkspace,
+    loadWorkspaces, addOrUpdateWorkspace, removeWorkspace, setActiveWorkspaceIds, patchWorkspace,
     type Workspace
 } from '../lib/workspaces';
 import { toast } from '../lib/toast';
@@ -68,7 +68,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
 
     const openWorkspace = (ws: Workspace) => {
         patchWorkspace(ws.id, { lastOpened: Date.now() });
-        setActiveWorkspaceId(ws.id);
+        setActiveWorkspaceIds([ws.id]);
         onIndexed(ws);
     };
 
@@ -108,7 +108,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
                         indexedAt: Date.now(),
                     };
                     addOrUpdateWorkspace(ws);
-                    setActiveWorkspaceId(ws.id);
+                    setActiveWorkspaceIds([ws.id]);
                     setWorkspaces(loadWorkspaces());
                     toast(`Workspace "${folderName}" indexed ✓`, 'success');
                     setTimeout(() => onIndexed(ws), 800);
