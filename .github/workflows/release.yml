@@ -99,13 +99,9 @@ jobs:
         shell: pwsh
         run: |
           $buildDir = "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
-          mkdir -Force atlas-windows/nsis
-          mkdir -Force atlas-windows/msi
-          Copy-Item "$buildDir/nsis/*.exe" -Destination "atlas-windows/nsis/"
-          Copy-Item "$buildDir/msi/*.msi" -Destination "atlas-windows/msi/"
-          Compress-Archive -Path "atlas-windows/*" -DestinationPath atlas-windows.zip
           mkdir -Force dist-artifacts
-          Move-Item atlas-windows.zip dist-artifacts/
+          Copy-Item "$buildDir/nsi/*.exe" -Destination "dist-artifacts/"
+          Copy-Item "$buildDir/msi/*.msi" -Destination "dist-artifacts/"
 
       - name: Prepare Artifacts (Linux)
         if: matrix.os-name == 'linux'
