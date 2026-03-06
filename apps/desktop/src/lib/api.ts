@@ -66,11 +66,18 @@ export async function listenIndexProgress(
     });
 }
 
-export async function fetchIndexStats(): Promise<{ count: number }> {
+export interface WorkspaceStats {
+    total_chunks: number;
+    total_files: number;
+    knowledge_coverage: number;
+    language_distribution: Record<string, number>;
+}
+
+export async function fetchIndexStats(workspaceId: string): Promise<WorkspaceStats> {
     try {
-        return await invoke<{ count: number }>('get_index_stats', {});
+        return await invoke<WorkspaceStats>('get_index_stats', { workspaceId });
     } catch {
-        return { count: 0 };
+        return { total_chunks: 0, total_files: 0, knowledge_coverage: 0, language_distribution: {} };
     }
 }
 

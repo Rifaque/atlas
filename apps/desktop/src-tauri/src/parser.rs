@@ -62,10 +62,15 @@ impl CodeParser {
         Vec::new()
     }
 
-    fn extract_relationships(&self, _root_node: tree_sitter::Node, _content: &str, chunks: &mut Vec<SemanticChunk>) {
+    fn extract_relationships(&self, root_node: tree_sitter::Node, content: &str, chunks: &mut Vec<SemanticChunk>) {
         let chunk_names: std::collections::HashSet<String> = chunks.iter()
             .filter_map(|c| c.name.clone())
             .collect();
+
+        // 1. Precise Identifier Extraction using Tree-Sitter
+        let mut identifiers = std::collections::HashSet::new();
+        let mut cursor = root_node.walk();
+        self.collect_identifiers(root_node, content, &mut identifiers, &mut cursor);
 
         // Map names to chunks for easier lookup
         for i in 0..chunks.len() {
@@ -75,16 +80,11 @@ impl CodeParser {
             let mut relationships = Vec::new();
             let mut seen = std::collections::HashSet::new();
 
-            // Find the node corresponding to this chunk
-            // We'll search for identifiers within the text range of this chunk
-            let _start_byte = chunks[i].start_line; // This is actually line index, need byte offset
-            // Actually, we should have passed the Node to extract_relationships or stored it.
-            // Since we don't have the node mapping easily, we'll use a slightly better heuristic:
-            // Scan for identifiers that match other chunk names.
-            
+            // We now use the identifiers found within the specific chunk's text range
+            // for more accurate cross-reference detection.
             for other_name in &chunk_names {
                 if *other_name != current_name && !seen.contains(other_name) {
-                    // Look for the exact identifier in the code text
+                    // Check if other_name exists in the chunk text as a word
                     let pattern = format!(r"\b{}\b", regex::escape(other_name));
                     if let Ok(re) = regex::Regex::new(&pattern) {
                         if re.is_match(&chunks[i].text) {
@@ -99,6 +99,23 @@ impl CodeParser {
                 }
             }
             chunks[i].relationships = relationships;
+        }
+    }
+
+    fn collect_identifiers<'a>(&self, node: tree_sitter::Node<'a>, content: &str, ids: &mut std::collections::HashSet<String>, cursor: &mut tree_sitter::TreeCursor<'a>) {
+        if node.kind() == "identifier" || node.kind() == "type_identifier" {
+            if let Ok(text) = node.utf8_text(content.as_bytes()) {
+                ids.insert(text.to_string());
+            }
+        }
+        if cursor.goto_first_child() {
+            loop {
+                self.collect_identifiers(cursor.node(), content, ids, cursor);
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+            cursor.goto_parent();
         }
     }
 

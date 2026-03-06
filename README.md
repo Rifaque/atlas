@@ -1,76 +1,78 @@
 # Atlas
 
+<div align="center">
+
 ![Atlas Thumbnail](assets/atlas-thumbnail.png)
 
-A local-first AI workspace assistant. Chat with your codebase and documents — entirely on your own machine. Atlas indexes any folder of code, PDFs, or text files and lets you ask natural-language questions about them using locally-running LLMs (via Ollama) or cloud models (via OpenRouter).
+[![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](package.json)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/Rifaque/atlas/actions)
+[![Ollama](https://img.shields.io/badge/LLM-Local_First-white.svg)](https://ollama.com)
+
+**The AI-First Local Workspace Assistant.**  
+*Understand. Search. Build. All on your own machine.*
+
+</div>
 
 ---
 
-## Tech Stack
+Atlas is an open-source, local-first workspace intelligence tool designed for developers who value privacy and performance. By combining high-speed Rust-based indexing with state-of-the-art Local LLMs, Atlas transforms your project folder into a searchable, queryable knowledge base.
 
-| Layer | Technology |
-|---|---|
-| **Desktop Shell** | Tauri 2 (Rust) |
-| **Frontend** | React 18, Vite, TypeScript |
-| **Vector Database** | LanceDB (embedded) |
-| **Embeddings** | Ollama `nomic-embed-text` |
-| **Local LLM** | Ollama (any model) |
-| **Cloud LLM** | OpenRouter (optional) |
-| **Build System** | Turborepo + pnpm workspaces |
+## ✨ Core Pillars
 
----
+🚀 **Privacy-First RAG**  
+Your code never leaves your machine. Atlas uses a local **LanceDB** vector store and **nomic-embed-text** to index your files with zero cloud leakage.
 
-## Features
+🕸️ **GraphRAG Intelligence**  
+Beyond raw vectors. Atlas uses **Tree-Sitter** to extract semantic code relationships, building a knowledge graph of your architecture for deeper reasoning.
 
-- **Local-First RAG**: High-performance semantic search indexed locally using LanceDB.
-- **Privacy by Design**: No file content leaves your machine unless you opt into cloud providers.
-- **Multi-Model Support**: Supports any model via Ollama (local) or OpenRouter (cloud).
-- **Timeline Intelligence**: Ask questions like "What changed since yesterday?" and get instant summaries.
-- **Secret Shield**: Scans outgoing cloud messages to prevent accidental API key leaks.
-- **Multi-Step Reasoning**: Visualizes thought process for deep reasoning models.
-- **Git Awareness**: Automatically understands your active branch and recent commits.
+🕒 **Timeline Intelligence**  
+Ask *"What changed since yesterday?"* or *"Summarize last week's commits."* Atlas integrates directly with your filesystem and Git history to provide time-aware context.
+
+🛡️ **Secret Shield**  
+Safe cloud experimentation. If you choose to use OpenRouter, Atlas automatically scans outgoing messages for API keys or PII before they ever hit the wire.
+
+🤖 **Agentic Design**  
+Purpose-built personas (Architect, Writer, Security Auditor) equipped with bounded shell tools to help verify code and validate architecture.
 
 ---
 
-## How to Run (Production)
+## 🛠️ Tech Stack
 
-1.  **Download**: Get the latest installer (`.exe` for Windows, `.AppImage` for Linux) from the [Releases](https://github.com/Rifaque/atlas/releases) page.
-2.  **Prerequisites**:
-    - Install [Ollama](https://ollama.com).
-    - Pull the embedding model: `ollama pull nomic-embed-text`.
-    - Pull a chat model (e.g., `ollama pull llama3.2`).
-3.  **Launch**: Run the installed application and select a folder to start indexing.
+Atlas is a native, high-performance desktop application:
+- **Engine**: Tauri 2 (Rust)
+- **Frontend**: React 18 & TypeScript
+- **Intelligence**: Ollama (Inference) + Tree-Sitter (Parsing)
+- **Storage**: LanceDB (Vector) + Apache Arrow
 
 ---
 
-## Developer Guide
+## 🏃 Quick Start
 
-### Manual Setup
-1.  **Clone & Install**:
+1.  **Download**: Grab the latest installer from [Releases](https://github.com/Rifaque/atlas/releases).
+2.  **Run Ollama**: Ensure [Ollama](https://ollama.com) is running and you have pulled your models:
     ```bash
-    git clone https://github.com/Rifaque/atlas.git
-    cd atlas
-    pnpm install
+    ollama pull nomic-embed-text  # Required for indexing
+    ollama pull llama3.2          # Recommended for chat
     ```
-2.  **Build Workspace**:
-    ```bash
-    pnpm run build
-    ```
-3.  **Run Dev Mode**:
-    ```bash
-    pnpm --filter desktop exec tauri dev
-    ```
+3.  **Index**: Launch Atlas, select your project folder, and start chatting.
 
 ---
 
-## Troubleshooting
+## 📖 Documentation
 
-- **Ollama Offline**: Ensure the Ollama app is running in your system tray.
-- **Empty Answers**: Verify `nomic-embed-text` is installed.
-- **Build Errors**: Check the [BUILD.md](./BUILD.md) for platform-specific dependencies.
+For deep dives into the Atlas internals, refer to our consolidated documentation:
+
+- 🎯 **[PRD](docs/prd.md)** — Product requirements and vision.
+- 🏗️ **[Architecture](docs/architecture.md)** — System design and RAG pipeline details.
+- 💻 **[Tech Stack](docs/tech-stack.md)** — Component-by-component technology breakdown.
+- 🧠 **[Agents](agents.md)** — Documentation of our agentic personas and core intelligence.
+- 🏗️ **[Development Guide](BUILD.md)** — Build instructions and platform dependencies.
 
 ---
 
-## License
+## ⚖️ License
 
-MIT © Atlas Team
+Atlas is released under the **MIT License**. See [LICENSE](LICENSE) for details.
+
+*Built for the next generation of local-first development.*

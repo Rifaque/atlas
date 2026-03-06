@@ -1,0 +1,17 @@
+# Atlas Notice
+
+Atlas (the "Software")
+Copyright (c) 2026 Rifaque Ahmed Akrami
+
+This project includes and utilizes several open-source libraries. For more information regarding the licenses of these dependencies, please refer to the relevant documentation for each project.
+
+## Key Dependencies & Credits
+
+- **Tauri**: (c) 2017 - present The Tauri Programme, Apache-2.0 or MIT.
+- **LanceDB**: (c) 2023 LanceDB Authors, Apache-2.0.
+- **Tree-sitter**: (c) 2018 Max Brunsfeld, MIT.
+- **React**: (c) Meta Platforms, Inc. and affiliates, MIT.
+- **Lucide Icons**: (c) 2022 Lucide Contributors, ISC.
+- **Ollama**: (c) Jeffrey Morgan, MIT.
+
+Special thanks to the open-source community for the tools that make Atlas possible.

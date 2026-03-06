@@ -188,8 +188,12 @@ export function WorkspaceLayout({ workspaces, onLeaveWorkspace }: WorkspaceLayou
 
     // Index stats
     useEffect(() => {
-        fetchIndexStats().then(s => setIndexedChunks(s.count));
-    }, []);
+        if (primaryWorkspace) {
+            fetchIndexStats(primaryWorkspace.folderPath)
+                .then(s => setIndexedChunks(s.total_chunks))
+                .catch(console.error);
+        }
+    }, [primaryWorkspace]);
 
     // File Watcher
     useEffect(() => {
@@ -961,7 +965,7 @@ export function WorkspaceLayout({ workspaces, onLeaveWorkspace }: WorkspaceLayou
 
                             {/* Analytics Tab */}
                             {leftTab === 'analytics' && (
-                                <AnalyticsDashboard />
+                                <AnalyticsDashboard workspaceId={primaryWorkspace.folderPath} />
                             )}
                         </section>
                     </Panel>

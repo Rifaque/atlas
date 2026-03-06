@@ -40,6 +40,14 @@ pub struct TimelineEvent {
     pub current_content: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceStats {
+    pub total_chunks: usize,
+    pub total_files: usize,
+    pub knowledge_coverage: f64,
+    pub language_distribution: HashMap<String, f64>,
+}
+
 // ─── Status & Models ─────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -346,9 +354,11 @@ async fn run_indexing_job(
 }
 
 #[tauri::command]
-pub async fn get_index_stats(state: State<'_, Arc<AppState>>) -> Result<serde_json::Value, String> {
-    let count = state.store.count().await.map_err(|e| format!("Database count failed: {}", e))?;
-    Ok(serde_json::json!({ "count": count }))
+pub async fn get_index_stats(
+    state: State<'_, Arc<AppState>>,
+    workspace_id: String,
+) -> Result<WorkspaceStats, String> {
+    state.store.get_workspace_stats(&workspace_id).await
 }
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
