@@ -2,8 +2,11 @@ name: Build and Release
 
 on:
   push:
+    branches: [main, development]
     tags:
       - 'v*'
+  pull_request:
+    branches: [main, development]
   workflow_dispatch:
 
 jobs:
@@ -91,7 +94,8 @@ jobs:
         with:
           projectPath: apps/desktop
           args: --target ${{ matrix.target }}
-          tagName: ${{ github.ref_name }}
+          # Only provide a tag name if this is a tag push; otherwise, it just builds/verifies.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: "Atlas ${{ github.ref_name }}"
           releaseBody: |
             See [CHANGELOG.md](https://github.com/Rifaque/atlas/blob/main/CHANGELOG.md) for full release notes.
@@ -115,8 +119,9 @@ jobs:
           cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage dist-artifacts/ || true
           cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb dist-artifacts/ || true
 
-      - name: Upload Additional Artifacts
+      - name: Upload Additional Artifacts (Tags Only)
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           tag_name: ${{ github.ref_name }}
           name: "Atlas ${{ github.ref_name }}"
