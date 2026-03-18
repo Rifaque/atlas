@@ -2,11 +2,8 @@ name: Build and Release
 
 on:
   push:
-    branches: [main, development]
     tags:
       - 'v*'
-  pull_request:
-    branches: [main, development]
   workflow_dispatch:
 
 jobs:
@@ -94,6 +91,13 @@ jobs:
         with:
           projectPath: apps/desktop
           args: --target ${{ matrix.target }}
+          tagName: ${{ github.ref_name }}
+          releaseName: "Atlas ${{ github.ref_name }}"
+          releaseBody: |
+            See [CHANGELOG.md](https://github.com/Rifaque/atlas/blob/main/CHANGELOG.md) for full release notes.
+          releaseDraft: false
+          prerelease: false
+          updaterJsonKeepUniversal: true
 
       - name: Prepare Artifacts (Windows)
         if: matrix.os-name == 'windows'
@@ -101,8 +105,8 @@ jobs:
         run: |
           $buildDir = "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
           mkdir -Force dist-artifacts
-          Copy-Item "$buildDir/nsis/*.exe" -Destination "dist-artifacts/"
-          Copy-Item "$buildDir/msi/*.msi" -Destination "dist-artifacts/"
+          Copy-Item "$buildDir/nsis/*.exe" -Destination "dist-artifacts/" -ErrorAction SilentlyContinue
+          Copy-Item "$buildDir/msi/*.msi" -Destination "dist-artifacts/" -ErrorAction SilentlyContinue
 
       - name: Prepare Artifacts (Linux)
         if: matrix.os-name == 'linux'
@@ -111,13 +115,15 @@ jobs:
           cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage dist-artifacts/ || true
           cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb dist-artifacts/ || true
 
-      - name: Upload Release
+      - name: Upload Additional Artifacts
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: "Atlas ${{ github.ref_name }}"
+          body: |
+            See [CHANGELOG.md](https://github.com/Rifaque/atlas/blob/main/CHANGELOG.md) for full release notes.
           prerelease: false
+          generate_release_notes: true
           files: dist-artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

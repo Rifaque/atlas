@@ -54,13 +54,17 @@ function App() {
 
   return (
     <ToastProvider>
-      {activeWorkspaces.length > 0
-        ? <WorkspaceLayout
-          workspaces={activeWorkspaces}
-          onLeaveWorkspace={() => setActiveWorkspaces([])}
-        />
-        : <LandingScreen onIndexed={(ws) => setActiveWorkspaces([ws])} />
-      }
+      <div key={activeWorkspaces.length > 0 ? 'workspace' : 'landing'}
+        className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+      >
+        {activeWorkspaces.length > 0
+          ? <WorkspaceLayout
+            workspaces={activeWorkspaces}
+            onLeaveWorkspace={() => setActiveWorkspaces([])}
+          />
+          : <LandingScreen onIndexed={(ws) => setActiveWorkspaces([ws])} />
+        }
+      </div>
       <UpdateChecker />
     </ToastProvider>
   );
