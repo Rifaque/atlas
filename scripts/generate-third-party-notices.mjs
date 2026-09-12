@@ -175,6 +175,15 @@ function inventoryKeys(document) {
   );
 }
 
+function noticeTextGroups(document) {
+  const groups = new Map();
+  for (const match of document.matchAll(/<details><summary>License text \d+: ([\s\S]*?)<\/summary>[\s\S]*?<pre>\n([\s\S]*?)\n<\/pre>/g)) {
+    const [, summary, text] = match;
+    groups.set(sha256(normalize(text)), summary);
+  }
+  return groups;
+}
+
 function reportMismatch(expected, generated) {
   const expectedKeys = inventoryKeys(expected);
   const generatedKeys = inventoryKeys(generated);
@@ -184,6 +193,14 @@ function reportMismatch(expected, generated) {
   console.error(`THIRD_PARTY_NOTICES.md is missing or stale. expected=${sha256(normalize(expected))} generated=${sha256(normalize(generated))}`);
   if (missing.length || unexpected.length) {
     console.error(`Inventory difference: missing=[${missing.join(', ')}] unexpected=[${unexpected.join(', ')}]`);
+  }
+
+  const expectedGroups = noticeTextGroups(expected);
+  const generatedGroups = noticeTextGroups(generated);
+  const missingGroups = [...expectedGroups.keys()].filter((key) => !generatedGroups.has(key)).map((key) => expectedGroups.get(key)).sort(compareText);
+  const unexpectedGroups = [...generatedGroups.keys()].filter((key) => !expectedGroups.has(key)).map((key) => generatedGroups.get(key)).sort(compareText);
+  if (missingGroups.length || unexpectedGroups.length) {
+    console.error(`License-text difference: missing=[${missingGroups.join(', ')}] unexpected=[${unexpectedGroups.join(', ')}]`);
   }
 }
 
