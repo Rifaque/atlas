@@ -12,6 +12,12 @@ This project includes and utilizes several open-source libraries. For more infor
 - **Tree-sitter**: (c) 2018 Max Brunsfeld, MIT.
 - **React**: (c) Meta Platforms, Inc. and affiliates, MIT.
 - **Lucide Icons**: (c) 2022 Lucide Contributors, ISC.
-- **Ollama**: (c) Jeffrey Morgan, MIT.
+
+Ollama is an external prerequisite and is not bundled with Atlas. Ollama is
+copyright its respective contributors and distributed under the MIT license.
+
+`THIRD_PARTY_NOTICES.md` is the generated artifact-level inventory and license
+bundle for the Atlas 1.0.0 Windows desktop distribution. Dependency manifests
+and lockfiles remain the authoritative machine-readable dependency graph.
 
 Special thanks to the open-source community for the tools that make Atlas possible.

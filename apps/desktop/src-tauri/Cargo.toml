@@ -1,18 +1,24 @@
 [package]
 name = "app"
-version = "0.10.1"
+default-run = "app"
+version = "1.0.0"
 description = "Atlas Desktop"
 authors = ["Rifaque Ahmed"]
 license = "MIT"
 repository = "https://github.com/Rifaque/atlas"
 edition = "2021"
 rust-version = "1.77.2"
+autobins = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "app"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.5.4", features = [] }
@@ -24,33 +30,22 @@ log = "0.4"
 tauri = { version = "2.10.0", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2.6.0"
-tauri-plugin-fs = "2.4.5"
-tauri-plugin-os = "2.3.2"
-tauri-plugin-shell = "2"
-tokio = { version = "1", features = ["time", "fs", "io-util", "sync", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["time", "fs", "sync", "macros", "rt-multi-thread"] }
 
 # Project dependencies
 reqwest = { version = "0.12", features = ["json", "stream"] }
 ignore = "0.4"                    # .gitignore-aware directory walking
-walkdir = "2"                     # recursive directory traversal
 lancedb = "0.15"                  # vector database
-arrow = { version = "53", default-features = false }
 arrow-array = "53"
 arrow-schema = "53"
 uuid = { version = "1", features = ["v4"] }
-chrono = "0.4"
 futures = "0.3"
-sha2 = "0.10"                     # file hashing for manifest
 async-recursion = "1"             # async recursive functions
 dirs = "5"                        # cross-platform home directory
 regex = "1"                       # pattern matching (greetings etc.)
 pdf-extract = "0.10.0"
-tauri-plugin-updater = "2"         # in-app auto-update
-tauri-plugin-process = "2"         # relaunch after update
-base64 = "0.22.1"                  # encode images for vision models
 lru = "0.16.3"
-tauri-plugin-global-shortcut = "2.3.1"
-tauri-plugin-positioner = { version = "2.0.1", features = ["tray-icon"] }
+keyring = "3"
 notify = "6.1.1"
 notify-debouncer-mini = "0.4.1"
 git2 = { version = "0.19", default-features = false }

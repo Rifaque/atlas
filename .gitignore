@@ -30,6 +30,7 @@ build_output*.log
 
 # ─── Tauri ────────────────────────────────────────────────────────────────────
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/target-codex/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/bin/
 
@@ -57,4 +58,3 @@ daemon/
 cookies/
 
 GIT COMMANDS.md
-BUILD.md

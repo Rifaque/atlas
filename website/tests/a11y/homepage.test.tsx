@@ -1,51 +1,34 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
-import { ChangelogAccordion } from "@/app/components/ChangelogAccordion";
-import { Footer } from "@/app/components/Footer";
-import { NavBar } from "@/app/components/NavBar";
-import { ScreenshotsCarousel } from "@/app/components/ScreenshotsCarousel";
-import { SpecsSection } from "@/app/components/SpecsSection";
-import { StickyDownloadCTA } from "@/app/components/StickyDownloadCTA";
-import type { ReleasePayload } from "@/lib/types";
+import { afterEach, describe, expect, it } from "vitest";
+import { AtlasHome } from "@/app/page";
 
-const releaseFixture: ReleasePayload = {
-  tag_name: "v0.9.2",
-  published_at: "2026-03-06T13:17:17Z",
-  html_url: "https://github.com/Rifaque/atlas/releases/tag/v0.9.2",
-  body: null,
-  assets: [
-    {
-      os: "windows",
-      name: "Atlas_0.9.2_x64-setup.exe",
-      url: "https://example.com/Atlas.exe",
-      size: 26127461,
-      sha256: "abcdef1234567890"
-    },
-    {
-      os: "linux",
-      name: "Atlas_0.9.2_amd64.AppImage",
-      url: "https://example.com/Atlas.AppImage",
-      size: 124217848,
-      sha256: "fedcba0987654321"
-    }
-  ]
-};
-
-describe("homepage accessibility", () => {
-  it("renders the launch page sections without obvious axe violations", async () => {
-    const view = render(
-      <div>
-        <NavBar />
-        <ScreenshotsCarousel />
-        <SpecsSection release={releaseFixture} />
-        <ChangelogAccordion releases={[releaseFixture]} />
-        <Footer />
-        <StickyDownloadCTA release={releaseFixture} />
-      </div>
+describe("Atlas 1.0 public homepage", () => {
+  afterEach(cleanup);
+  it("presents a Windows download CTA with accurate 1.0 disclosure", () => {
+    render(<AtlasHome />);
+    expect(screen.getAllByRole("link", { name: /Download Atlas 1.0.0/i })[0]).toHaveAttribute(
+      "href",
+      "https://github.com/Rifaque/atlas/releases/tag/v1.0.0"
     );
+    expect(screen.getByText(/Unsigned NSIS installer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Linux is configured but unverified/i)).toBeInTheDocument();
+  });
 
-    const results = await axe(view.container);
-    expect(results.violations).toHaveLength(0);
+  it("states the evidence and local/cloud boundaries without retired product claims", () => {
+    render(<AtlasHome />);
+    const content = document.body.textContent?.toLowerCase() ?? "";
+    expect(content).toContain("evidence first");
+    expect(content).toContain("optional cloud mode");
+    expect(content).toContain("no arbitrary shell execution");
+    for (const retiredTerm of ["graphrag", "hyde", "autonomous workflow", "vision attachment", "overlay chat"]) {
+      expect(content).not.toContain(retiredTerm);
+    }
+  });
+
+  it("has no obvious accessibility violations", async () => {
+    const view = render(<AtlasHome />);
+    const violations = (await axe(view.container)).violations as Array<{ id: string }>;
+    expect(violations.map((violation) => violation.id)).toEqual([]);
   });
 });

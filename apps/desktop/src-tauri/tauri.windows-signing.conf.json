@@ -1,0 +1,19 @@
+{
+  "bundle": {
+    "windows": {
+      "signCommand": {
+        "cmd": "powershell",
+        "args": [
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "../../../scripts/sign-windows.ps1",
+          "%1"
+        ]
+      }
+    }
+  }
+}

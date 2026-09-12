@@ -1,50 +1,24 @@
-# One-Command Installer for Atlas (Windows PowerShell)
+# Atlas source checkout bootstrap for Windows.
+# This is NOT an end-user installer. Release users should install the signed
+# artifact published on GitHub Releases after the 1.0.0 release is approved.
 $ErrorActionPreference = "Stop"
 
-Write-Host "[Atlas] Starting One-Command Install..." -ForegroundColor Cyan
+Write-Host "[Atlas] Developer source bootstrap (not an application installer)" -ForegroundColor Cyan
 
-# 1. Install prerequisites via Winget if missing
-if (!(Get-Command "node" -ErrorAction SilentlyContinue)) {
-    Write-Host "[Atlas] Installing Node.js..." -ForegroundColor Yellow
-    winget install OpenJS.NodeJS
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+$requiredCommands = @("node", "pnpm", "cargo", "protoc")
+$missing = @($requiredCommands | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
+
+if ($missing.Count -gt 0) {
+    throw "Missing developer prerequisites: $($missing -join ', '). See README.md and BUILD.md."
 }
 
-if (!(Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
-    Write-Host "[Atlas] Installing pnpm..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://get.pnpm.io/install.ps1" -UseBasicParsing | Invoke-Expression
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+if (-not (Get-Command "ollama" -ErrorAction SilentlyContinue)) {
+    Write-Warning "Ollama is not installed. Builds can continue, but indexing and local runtime QA require Ollama."
 }
 
-if (!(Get-Command "cargo" -ErrorAction SilentlyContinue)) {
-    Write-Host "[Atlas] Installing Rust..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://win.rustup.rs/x86_64" -OutFile "rustup-init.exe"
-    .\rustup-init.exe -y --quiet
-    Remove-Item "rustup-init.exe"
-    $env:Path += ";$HOME\.cargo\bin"
-}
+pnpm install --frozen-lockfile
+pnpm version:check
+pnpm build
 
-if (!(Get-Command "protoc" -ErrorAction SilentlyContinue)) {
-    Write-Host "[Atlas] Installing Protoc (Protocol Buffers Compiler)..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-win64.zip" -OutFile "protoc.zip"
-    Expand-Archive -Path "protoc.zip" -DestinationPath "C:\protoc" -Force
-    Remove-Item "protoc.zip"
-    [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\protoc\bin", [System.EnvironmentVariableTarget]::User)
-    $env:Path += ";C:\protoc\bin"
-}
-
-if (!(Get-Command "ollama" -ErrorAction SilentlyContinue)) {
-    Write-Host "[Atlas] Installing Ollama..." -ForegroundColor Yellow
-    winget install --id Ollama.Ollama -e --source winget
-}
-
-# 2. Build and launch
-Write-Host "[Atlas] Installing dependencies..." -ForegroundColor Cyan
-pnpm install
-
-Write-Host "[Atlas] Building monorepo (this builds both frontend and Tauri app)..." -ForegroundColor Cyan
-pnpm run build
-
-Write-Host "[Atlas] Launching Desktop App..." -ForegroundColor Cyan
-Set-Location -Path "apps\desktop"
-pnpm tauri dev
+Write-Host "[Atlas] Source dependencies and production frontend build are ready." -ForegroundColor Green
+Write-Host "Run 'pnpm --filter desktop tauri dev' for development or follow BUILD.md for release bundles."

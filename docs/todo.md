@@ -1,7 +1,13 @@
 # Atlas: Road to v1.0.0 (Rolling Todo)
 
+> [!NOTE]
+> Archived pre-refresh roadmap. Items here are historical or exploratory and are not commitments for the reduced Atlas 1.0 product.
+
 > [!IMPORTANT]
-> **CRUCIAL FILE**: This is the single source of truth for the Atlas project roadmap and task status. Do not delete or move.
+> **CRUCIAL FILE**: Preserve this historical roadmap. It is not the current Atlas 1.0 source of truth.
+
+> [!WARNING]
+> The historical Phase 11 checkmarks below do not represent the current release state. Atlas 1.0.0 is unreleased, Windows signing is not configured, Linux is not natively verified, and macOS packaging/notarization is not configured. Use `docs/release/atlas-1.0-release-checklist.md` instead.
 
 ## 🎯 Phase 10: The Pre "1.0" Polish (0.10.0) [x]
 - [x] **Documentation Consolidation** — Unify PRD, Design, Architecture, and Roadmap.

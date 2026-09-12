@@ -1,6 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atlas",
+  "mainBinaryName": "app",
   "version": "1.0.0",
   "identifier": "com.atlas.desktop",
   "build": {
@@ -17,35 +18,18 @@
         "width": 1200,
         "height": 800,
         "minWidth": 1000,
-        "minHeight": 600,
+        "minHeight": 640,
         "resizable": true,
         "fullscreen": false
-      },
-      {
-        "label": "overlay",
-        "title": "Atlas Mini",
-        "width": 450,
-        "height": 600,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "visible": false,
-        "center": true,
-        "skipTaskbar": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*"
     }
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis",
-      "msi",
-      "appimage",
-      "deb"
-    ],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -53,18 +37,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "../../../LICENSE": "LICENSE.txt",
+      "../../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
     "publisher": "Rifaque",
-    "longDescription": "Atlas is a local-first workspace intelligence app for developers. Index and query your codebase without sending it to the cloud."
-  },
-  "plugins": {
-    "updater": {
-      "windows": {
-        "installMode": "passive"
-      },
-      "endpoints": [
-        "https://github.com/Rifaque/atlas/releases/latest/download/latest.json"
-      ],
-      "pubkey": "YOUR_PUBKEY_HERE"
-    }
+    "longDescription": "Atlas is a local-first workspace intelligence app. Local Ollama mode keeps workspace generation on the configured Ollama host; optional OpenRouter generation is explicit and opt-in."
   }
 }

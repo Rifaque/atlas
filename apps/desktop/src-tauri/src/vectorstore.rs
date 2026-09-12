@@ -1,10 +1,10 @@
-use lancedb::connect;
-use lancedb::query::{ExecutableQuery, QueryBase};
 use arrow_array::{
-    Array, Float32Array, Int32Array, RecordBatch, RecordBatchIterator, StringArray,
-    FixedSizeListArray,
+    Array, FixedSizeListArray, Float32Array, Int32Array, RecordBatch, RecordBatchIterator,
+    StringArray,
 };
 use arrow_schema::{DataType, Field, Schema};
+use lancedb::connect;
+use lancedb::query::{ExecutableQuery, QueryBase};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -34,6 +34,20 @@ pub struct StoredChunkMetadata {
 pub struct AtlasVectorStore {
     db_path: String,
 }
+
+/// Result of checking the generated Lance table used for one embedding shape.
+/// A table is shared by workspaces that use the same vector dimension, so a
+/// repair must be deliberately scoped to that table and accompanied by
+/// manifest invalidation in the caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TablePreparation {
+    Ready,
+    Missing,
+    Rebuilt,
+}
+
+pub const DAMAGED_LOCAL_INDEX_MESSAGE: &str =
+    "Atlas detected a damaged local index and needs to rebuild it.";
 
 impl AtlasVectorStore {
     pub fn new(db_path: Option<String>) -> Self {
@@ -74,14 +88,106 @@ impl AtlasVectorStore {
         ]))
     }
 
-    fn edges_schema() -> Arc<Schema> {
-        Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Utf8, false),
-            Field::new("fromName", DataType::Utf8, false),
-            Field::new("toName", DataType::Utf8, false),
-            Field::new("kind", DataType::Utf8, false),
-            Field::new("workspaceId", DataType::Utf8, false),
-        ]))
+    pub fn table_name(vector_length: usize) -> String {
+        format!("atlas_v2_{vector_length}")
+    }
+
+    /// A narrowly-scoped classifier for generated Lance table damage.  It is
+    /// intentionally not used for permission, storage-space, or arbitrary I/O
+    /// failures: those must remain actionable errors rather than trigger a
+    /// destructive recovery attempt.
+    pub fn is_recoverable_table_error(error: &str) -> bool {
+        let error = error.to_ascii_lowercase();
+        let looks_like_lance = error.contains("lance") || error.contains("dataset scanner");
+        let damaged_data = [
+            "not found",
+            "no such file",
+            "missing fragment",
+            "missing data",
+            "corrupt",
+            "invalid manifest",
+            "invalid data",
+        ]
+        .iter()
+        .any(|needle| error.contains(needle));
+        looks_like_lance && damaged_data
+    }
+
+    async fn read_table_probe(&self, vector_length: usize) -> Result<bool, String> {
+        let db = connect(&self.db_path)
+            .execute()
+            .await
+            .map_err(|e| format!("LanceDB connect error: {e}"))?;
+        let table_name = Self::table_name(vector_length);
+        let table_names = db
+            .table_names()
+            .execute()
+            .await
+            .map_err(|e| format!("Failed to list local index tables: {e}"))?;
+        if !table_names.contains(&table_name) {
+            return Ok(false);
+        }
+        let table = db
+            .open_table(&table_name)
+            .execute()
+            .await
+            .map_err(|e| format!("Failed to open local index table {table_name}: {e}"))?;
+        let results = table
+            .query()
+            .limit(1)
+            .execute()
+            .await
+            .map_err(|e| format!("Failed to scan local index table {table_name}: {e}"))?;
+        // Opening a table only reads metadata.  Consume a bounded result so a
+        // missing Lance fragment is detected before indexing modifies state.
+        let _: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results)
+            .await
+            .map_err(|e| format!("Failed to read local index table {table_name}: {e}"))?;
+        Ok(true)
+    }
+
+    /// Check an existing generated table without changing it.  Health checks
+    /// use this so a manifest alone can never advertise a damaged table as
+    /// ready.
+    pub async fn check_table_readable(&self, vector_length: usize) -> Result<(), String> {
+        match self.read_table_probe(vector_length).await? {
+            true => Ok(()),
+            false => Err(format!(
+                "Local index table {} is missing",
+                Self::table_name(vector_length)
+            )),
+        }
+    }
+
+    /// Verify the one table needed for an index operation.  If its on-disk
+    /// generated data is structurally missing/corrupt, drop only that table so
+    /// the caller can invalidate manifests and rebuild it.  We do not recover
+    /// arbitrary I/O failures such as permissions or disk-full errors.
+    pub async fn prepare_table_for_index(
+        &self,
+        vector_length: usize,
+    ) -> Result<TablePreparation, String> {
+        match self.read_table_probe(vector_length).await {
+            Ok(true) => Ok(TablePreparation::Ready),
+            Ok(false) => Ok(TablePreparation::Missing),
+            Err(error) if Self::is_recoverable_table_error(&error) => {
+                let table_name = Self::table_name(vector_length);
+                log::warn!(
+                    "[indexer] damaged generated Lance table {table_name} detected; rebuilding only that table: {error}"
+                );
+                let db = connect(&self.db_path)
+                    .execute()
+                    .await
+                    .map_err(|e| format!("LanceDB connect error during index recovery: {e}"))?;
+                db.drop_table(&table_name).await.map_err(|e| {
+                    format!(
+                        "{DAMAGED_LOCAL_INDEX_MESSAGE} Atlas could not remove the damaged generated table {table_name}: {e}"
+                    )
+                })?;
+                Ok(TablePreparation::Rebuilt)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Store chunks with their embeddings
@@ -109,16 +215,25 @@ impl AtlasVectorStore {
         let id_array = Arc::new(StringArray::from(ids)) as Arc<dyn Array>;
         let doc_array = Arc::new(StringArray::from(documents)) as Arc<dyn Array>;
         let file_path_array = Arc::new(StringArray::from(
-            metadatas.iter().map(|m| m.file_path.clone()).collect::<Vec<_>>(),
+            metadatas
+                .iter()
+                .map(|m| m.file_path.clone())
+                .collect::<Vec<_>>(),
         )) as Arc<dyn Array>;
         let chunk_idx_array = Arc::new(Int32Array::from(
             metadatas.iter().map(|m| m.chunk_index).collect::<Vec<_>>(),
         )) as Arc<dyn Array>;
         let lr_start_array = Arc::new(Int32Array::from(
-            metadatas.iter().map(|m| m.line_range_start).collect::<Vec<_>>(),
+            metadatas
+                .iter()
+                .map(|m| m.line_range_start)
+                .collect::<Vec<_>>(),
         )) as Arc<dyn Array>;
         let lr_end_array = Arc::new(Int32Array::from(
-            metadatas.iter().map(|m| m.line_range_end).collect::<Vec<_>>(),
+            metadatas
+                .iter()
+                .map(|m| m.line_range_end)
+                .collect::<Vec<_>>(),
         )) as Arc<dyn Array>;
         let parent_text_array = Arc::new(StringArray::from(
             metadatas
@@ -151,9 +266,8 @@ impl AtlasVectorStore {
                 .map(|m| m.name.clone().unwrap_or_default())
                 .collect::<Vec<_>>(),
         )) as Arc<dyn Array>;
-        let ws_id_array = Arc::new(StringArray::from(
-            vec![workspace_id; metadatas.len()]
-        )) as Arc<dyn Array>;
+        let ws_id_array =
+            Arc::new(StringArray::from(vec![workspace_id; metadatas.len()])) as Arc<dyn Array>;
 
         // Build vector array (FixedSizeList of Float32)
         let flat_values: Vec<f32> = embeddings.iter().flatten().copied().collect();
@@ -197,7 +311,7 @@ impl AtlasVectorStore {
             .await
             .map_err(|e| format!("Failed to list tables: {}", e))?;
 
-        let table_name = format!("atlas_v2_{}", vector_length);
+        let table_name = Self::table_name(vector_length as usize);
 
         if table_names.contains(&table_name) {
             let table = db
@@ -215,52 +329,6 @@ impl AtlasVectorStore {
                 .execute()
                 .await
                 .map_err(|e| format!("Failed to create table: {}", e))?;
-        }
-
-        Ok(())
-    }
-
-    /// Store semantic relationships between entities
-    pub async fn store_relationships(
-        &self,
-        workspace_id: String,
-        relationships: Vec<crate::parser::SemanticRelationship>,
-    ) -> Result<(), String> {
-        if relationships.is_empty() {
-            return Ok(());
-        }
-
-        let schema = Self::edges_schema();
-        let db = connect(&self.db_path).execute().await.map_err(|e| e.to_string())?;
-
-        let ids: Vec<String> = (0..relationships.len()).map(|_| uuid::Uuid::new_v4().to_string()).collect();
-        let from_names: Vec<String> = relationships.iter().map(|r| r.from_name.clone()).collect();
-        let to_names: Vec<String> = relationships.iter().map(|r| r.to_name.clone()).collect();
-        let kinds: Vec<String> = relationships.iter().map(|r| r.kind.clone()).collect();
-        let ws_ids: Vec<String> = vec![workspace_id; relationships.len()];
-
-        let id_array = Arc::new(StringArray::from(ids)) as Arc<dyn Array>;
-        let from_array = Arc::new(StringArray::from(from_names)) as Arc<dyn Array>;
-        let to_array = Arc::new(StringArray::from(to_names)) as Arc<dyn Array>;
-        let kind_array = Arc::new(StringArray::from(kinds)) as Arc<dyn Array>;
-        let ws_array = Arc::new(StringArray::from(ws_ids)) as Arc<dyn Array>;
-
-        let batch = RecordBatch::try_new(
-            schema.clone(),
-            vec![id_array, from_array, to_array, kind_array, ws_array],
-        ).map_err(|e| e.to_string())?;
-
-        let batches = RecordBatchIterator::new(vec![Ok(batch)], schema.clone());
-        let table_names = db.table_names().execute().await.map_err(|e| e.to_string())?;
-
-        if table_names.contains(&"atlas_v2_edges".to_string()) {
-            let table = db.open_table("atlas_v2_edges").execute().await.map_err(|e| e.to_string())?;
-            table.add(batches).execute().await.map_err(|e| e.to_string())?;
-        } else {
-            db.create_table("atlas_v2_edges", batches)
-                .execute()
-                .await
-                .map_err(|e| e.to_string())?;
         }
 
         Ok(())
@@ -285,7 +353,7 @@ impl AtlasVectorStore {
             .map_err(|e| format!("Table names error: {}", e))?;
 
         let vector_length = query_embedding.len();
-        let table_name = format!("atlas_v2_{}", vector_length);
+        let table_name = Self::table_name(vector_length);
 
         if !table_names.contains(&table_name) {
             return Ok(serde_json::json!({
@@ -299,11 +367,14 @@ impl AtlasVectorStore {
             .await
             .map_err(|e| format!("Open table error: {}", e))?;
 
-        let mut query = table.vector_search(query_embedding).map_err(|e| e.to_string())?;
-        
+        let mut query = table
+            .vector_search(query_embedding)
+            .map_err(|e| e.to_string())?;
+
         if let Some(ids) = workspace_ids {
             if !ids.is_empty() {
-                let filter = ids.iter()
+                let filter = ids
+                    .iter()
                     .map(|id| format!("`workspaceId` = '{}'", Self::escape_filter_string(id)))
                     .collect::<Vec<_>>()
                     .join(" OR ");
@@ -327,26 +398,42 @@ impl AtlasVectorStore {
         let mut metadatas = Vec::new();
 
         for batch in &batches {
-            let id_col = batch.column_by_name("id")
+            let id_col = batch
+                .column_by_name("id")
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let doc_col = batch.column_by_name("document")
+            let doc_col = batch
+                .column_by_name("document")
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let dist_col = batch.column_by_name("_distance")
+            let dist_col = batch
+                .column_by_name("_distance")
                 .and_then(|c| c.as_any().downcast_ref::<Float32Array>());
-            let fp_col = batch.column_by_name("filePath")
+            let fp_col = batch
+                .column_by_name("filePath")
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let ci_col = batch.column_by_name("chunkIndex")
+            let ci_col = batch
+                .column_by_name("chunkIndex")
                 .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let ls_col = batch.column_by_name("lineRangeStart")
+            let ls_col = batch
+                .column_by_name("lineRangeStart")
                 .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let le_col = batch.column_by_name("lineRangeEnd")
+            let le_col = batch
+                .column_by_name("lineRangeEnd")
                 .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let pt_col = batch.column_by_name("parentText")
+            let pt_col = batch
+                .column_by_name("parentText")
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let pls_col = batch.column_by_name("parentLineRangeStart")
+            let pls_col = batch
+                .column_by_name("parentLineRangeStart")
                 .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let ple_col = batch.column_by_name("parentLineRangeEnd")
+            let ple_col = batch
+                .column_by_name("parentLineRangeEnd")
                 .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+            let kind_col = batch
+                .column_by_name("kind")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let name_col = batch
+                .column_by_name("name")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
             let num_rows = batch.num_rows();
             for i in 0..num_rows {
@@ -361,6 +448,8 @@ impl AtlasVectorStore {
                     "parentText": pt_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
                     "parentLineRangeStart": pls_col.map(|c| c.value(i)).unwrap_or(0),
                     "parentLineRangeEnd": ple_col.map(|c| c.value(i)).unwrap_or(0),
+                    "kind": kind_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                    "name": name_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
                 }));
             }
         }
@@ -373,30 +462,11 @@ impl AtlasVectorStore {
         }))
     }
 
-    /// Extract keywords from a query string for exact matching
-    fn extract_keywords(query: &str) -> Vec<String> {
-        let stop_words = vec![
-            "what", "where", "when", "why", "how", "who", "which",
-            "this", "that", "these", "those", "from", "with", "about",
-            "the", "and", "but", "for", "nor", "yet", "has", "have",
-            "function", "class", "method", "variable", "code", "file",
-            "does", "doing", "find", "search", "show", "tell", "explain"
-        ];
-        
-        query.split(|c: char| c.is_ascii_punctuation() || c.is_whitespace())
-            .filter(|s| {
-                let s_lower = s.to_lowercase();
-                s.len() > 3 // only significant words
-                && !stop_words.contains(&s_lower.as_str())
-            })
-            .map(|s| s.to_string())
-            .collect()
-    }
-
-    /// Helper to escape raw strings for LanceDB's expression parser (SQL-like)
-    /// Backslashes must be doubled for literal matching in DataFusion.
+    /// Escape string delimiters for LanceDB's SQL-like expression parser.
+    /// Backslashes are literal in DataFusion string values; doubling Windows
+    /// separators makes canonical workspace filters fail to match stored rows.
     fn escape_filter_string(s: &str) -> String {
-        s.replace('\'', "''").replace('\\', "\\\\")
+        s.replace('\'', "''")
     }
 
     /// Helper to process a RecordBatch stream into vectors
@@ -414,25 +484,48 @@ impl AtlasVectorStore {
         let mut metadatas = Vec::new();
 
         for batch in &batches {
-            let id_col = batch.column_by_name("id")
+            let id_col = batch
+                .column_by_name("id")
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let doc_col = batch.column_by_name("document")
+            let doc_col = batch
+                .column_by_name("document")
                 .and_then(|c| c.as_any().downcast_ref::<StringArray>());
             // For exact matches, we artificially assign a perfect distance of 0.0
             let dist_col = if is_exact_match {
                 None
             } else {
-                batch.column_by_name("_distance")
+                batch
+                    .column_by_name("_distance")
                     .and_then(|c| c.as_any().downcast_ref::<Float32Array>())
             };
-            
-            let fp_col = batch.column_by_name("filePath").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let ci_col = batch.column_by_name("chunkIndex").and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let ls_col = batch.column_by_name("lineRangeStart").and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let le_col = batch.column_by_name("lineRangeEnd").and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let pt_col = batch.column_by_name("parentText").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-            let pls_col = batch.column_by_name("parentLineRangeStart").and_then(|c| c.as_any().downcast_ref::<Int32Array>());
-            let ple_col = batch.column_by_name("parentLineRangeEnd").and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+
+            let fp_col = batch
+                .column_by_name("filePath")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let ci_col = batch
+                .column_by_name("chunkIndex")
+                .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+            let ls_col = batch
+                .column_by_name("lineRangeStart")
+                .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+            let le_col = batch
+                .column_by_name("lineRangeEnd")
+                .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+            let pt_col = batch
+                .column_by_name("parentText")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let pls_col = batch
+                .column_by_name("parentLineRangeStart")
+                .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+            let ple_col = batch
+                .column_by_name("parentLineRangeEnd")
+                .and_then(|c| c.as_any().downcast_ref::<Int32Array>());
+            let kind_col = batch
+                .column_by_name("kind")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+            let name_col = batch
+                .column_by_name("name")
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
             let num_rows = batch.num_rows();
             for i in 0..num_rows {
@@ -447,319 +540,424 @@ impl AtlasVectorStore {
                     "parentText": pt_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
                     "parentLineRangeStart": pls_col.map(|c| c.value(i)).unwrap_or(0),
                     "parentLineRangeEnd": ple_col.map(|c| c.value(i)).unwrap_or(0),
+                    "kind": kind_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
+                    "name": name_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
                 }));
             }
         }
-        
+
         Ok((ids, distances, documents, metadatas))
     }
 
-    pub async fn hybrid_search(
+    /// BM25-ranked lexical candidates and vector candidates fused by rank.
+    /// Both paths read the same committed Lance rows, so incremental updates
+    /// cannot leave a second lexical index out of sync.
+    pub async fn quality_search(
         &self,
         query_embedding: Vec<f32>,
         query_text: &str,
         n_results: usize,
-        workspace_ids: Option<Vec<String>>,
+        workspace_id: &str,
     ) -> Result<serde_json::Value, String> {
+        use crate::retrieval_quality::{
+            bm25_rank, classify_relevance, reciprocal_rank_fusion, suppress_overlap, EvalDocument,
+            RankedCandidate, RelevanceLevel, CANDIDATE_LIMIT,
+        };
+
+        let semantic_json = self
+            .similarity_search(
+                query_embedding.clone(),
+                CANDIDATE_LIMIT,
+                Some(vec![workspace_id.to_string()]),
+            )
+            .await?;
+        let row = |value: &serde_json::Value, name: &str| {
+            value
+                .get(name)
+                .and_then(|field| field.get(0))
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+        };
+        let ids = row(&semantic_json, "ids");
+        let distances = row(&semantic_json, "distances");
+        let documents = row(&semantic_json, "documents");
+        let metadatas = row(&semantic_json, "metadatas");
+        let semantic: Vec<_> = ids
+            .iter()
+            .enumerate()
+            .filter_map(|(index, id)| {
+                let metadata = metadatas.get(index)?;
+                Some(RankedCandidate {
+                    id: id.as_str()?.to_string(),
+                    file_path: metadata.get("filePath")?.as_str()?.to_string(),
+                    line_start: metadata.get("lineRangeStart")?.as_i64()?,
+                    line_end: metadata.get("lineRangeEnd")?.as_i64()?,
+                    text: documents.get(index)?.as_str()?.to_string(),
+                    kind: metadata
+                        .get("kind")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    name: metadata
+                        .get("name")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    semantic_distance: distances.get(index)?.as_f64().map(|value| value as f32),
+                    lexical_score: 0.0,
+                    lexical_match_count: 0,
+                    exact_structural_match: false,
+                    fused_score: 0.0,
+                })
+            })
+            .collect();
+
+        let db = connect(&self.db_path)
+            .execute()
+            .await
+            .map_err(|error| error.to_string())?;
+        let table_name = format!("atlas_v2_{}", query_embedding.len());
+        if !db
+            .table_names()
+            .execute()
+            .await
+            .map_err(|error| error.to_string())?
+            .contains(&table_name)
+        {
+            return Ok(Self::empty_search_result());
+        }
+        let table = db
+            .open_table(&table_name)
+            .execute()
+            .await
+            .map_err(|error| error.to_string())?;
+        let filter = format!(
+            "`workspaceId` = '{}'",
+            Self::escape_filter_string(workspace_id)
+        );
+        let rows = table
+            .query()
+            .only_if(filter)
+            .limit(20_000)
+            .execute()
+            .await
+            .map_err(|error| format!("Lexical candidate scan failed: {error}"))?;
+        let (lexical_ids, _, lexical_texts, lexical_metadata) =
+            Self::process_batches(rows, true).await?;
+        let lexical_documents: Vec<_> = lexical_ids
+            .iter()
+            .enumerate()
+            .filter_map(|(index, id)| {
+                let metadata = lexical_metadata.get(index)?;
+                Some(EvalDocument {
+                    id: id.clone(),
+                    file_path: metadata.get("filePath")?.as_str()?.to_string(),
+                    line_start: metadata.get("lineRangeStart")?.as_i64()?,
+                    line_end: metadata.get("lineRangeEnd")?.as_i64()?,
+                    kind: metadata
+                        .get("kind")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    name: metadata
+                        .get("name")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string),
+                    text: lexical_texts.get(index)?.clone(),
+                })
+            })
+            .collect();
+        let lexical = bm25_rank(query_text, &lexical_documents, CANDIDATE_LIMIT);
+        let fused = suppress_overlap(
+            reciprocal_rank_fusion(&semantic, &lexical, CANDIDATE_LIMIT),
+            n_results,
+        );
+        let relevance = classify_relevance(&fused);
+        if relevance == RelevanceLevel::None {
+            return Ok(Self::empty_search_result());
+        }
+
+        Ok(serde_json::json!({
+            "ids": [fused.iter().map(|item| item.id.clone()).collect::<Vec<_>>()],
+            "distances": [fused.iter().map(|item| item.semantic_distance.unwrap_or(f32::MAX)).collect::<Vec<_>>()],
+            "documents": [fused.iter().map(|item| item.text.clone()).collect::<Vec<_>>()],
+            "metadatas": [fused.iter().map(|item| serde_json::json!({
+                "filePath": item.file_path,
+                "lineRangeStart": item.line_start,
+                "lineRangeEnd": item.line_end,
+                "kind": item.kind,
+                "name": item.name,
+            })).collect::<Vec<_>>()],
+            "relevance": relevance,
+        }))
+    }
+
+    fn empty_search_result() -> serde_json::Value {
+        serde_json::json!({
+            "ids": [[]], "distances": [[]], "documents": [[]], "metadatas": [[]],
+            "relevance": "none"
+        })
+    }
+
+    /// Delete all chunks for a given file path from the table used by the
+    /// current embedding model.  Index tables are dimension-specific; scanning
+    /// every table made a damaged, unrelated table block safe cleanup.
+    pub async fn delete_by_filepath(
+        &self,
+        vector_length: usize,
+        file_path: &str,
+    ) -> Result<(), String> {
+        self.delete_by_filepath_except(vector_length, file_path, &[])
+            .await
+    }
+
+    /// Delete obsolete chunks while retaining a newly staged replacement set.
+    pub async fn delete_by_filepath_except(
+        &self,
+        vector_length: usize,
+        file_path: &str,
+        retained_ids: &[String],
+    ) -> Result<(), String> {
         let db = connect(&self.db_path)
             .execute()
             .await
             .map_err(|e| format!("LanceDB connect error: {}", e))?;
 
+        let table_name = Self::table_name(vector_length);
         let table_names = db
             .table_names()
             .execute()
             .await
-            .map_err(|e| format!("Table names error: {}", e))?;
-
-        let vector_length = query_embedding.len();
-        let table_name = format!("atlas_v2_{}", vector_length);
-
+            .map_err(|e| format!("Failed to list local index tables: {e}"))?;
         if !table_names.contains(&table_name) {
-            return Ok(serde_json::json!({
-                "ids": [[]], "distances": [[]], "documents": [[]], "metadatas": [[]]
-            }));
+            return Ok(());
         }
+        let escaped_path = Self::escape_filter_string(file_path);
+        let retained_filter = if retained_ids.is_empty() {
+            String::new()
+        } else {
+            let ids = retained_ids
+                .iter()
+                .map(|id| format!("'{}'", Self::escape_filter_string(id)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(" AND `id` NOT IN ({ids})")
+        };
+        let filter = format!("`filePath` = '{escaped_path}'{retained_filter}");
 
         let table = db
             .open_table(&table_name)
             .execute()
             .await
-            .map_err(|e| format!("Open table error: {}", e))?;
-
-        // 1. DENSE VECTOR SEARCH
-        let mut sim_query = table.vector_search(query_embedding).map_err(|e| e.to_string())?;
-        
-        if let Some(ref ids) = workspace_ids {
-            if !ids.is_empty() {
-                let filter = ids.iter()
-                    .map(|id| format!("`workspaceId` = '{}'", id.replace('\'', "''")))
-                    .collect::<Vec<_>>()
-                    .join(" OR ");
-                sim_query = sim_query.only_if(filter);
-            }
-        }
-
-        let sim_results = sim_query
-            .limit(n_results)
-            .execute()
+            .map_err(|e| format!("Open local index table {table_name} error: {e}"))?;
+        table
+            .delete(&filter)
             .await
-            .map_err(|e| format!("Search execute error: {}", e))?;
-
-        let (mut final_ids, mut final_dists, mut final_docs, mut final_metas) = 
-            Self::process_batches(sim_results, false).await?;
-
-        // 2. EXACT KEYWORD SEARCH (ILIKE Fallback)
-        // Truncate query text to avoid massive filter strings (e.g. from timeline reports)
-        let capped_query = if query_text.len() > 1000 { &query_text[..1000] } else { query_text };
-        let mut keywords = Self::extract_keywords(capped_query);
-        keywords.truncate(20); // Limit to top 20 keywords to prevent stack overflow in filter logic
-
-        if !keywords.is_empty() {
-            let filter_parts: Vec<_> = keywords.iter()
-                .map(|k| format!("`text` ILIKE '%{}%'", k.replace('\'', "''")))
-                .collect();
-
-            let filter_query = if let Some(ref ids) = workspace_ids {
-                if !ids.is_empty() {
-                    let ws_filter = ids.iter()
-                        .map(|id| format!("`workspaceId` = '{}'", id.replace('\'', "''")))
-                        .collect::<Vec<_>>()
-                        .join(" OR ");
-                    format!("({}) AND ({})", ws_filter, filter_parts.join(" OR "))
-                } else {
-                    filter_parts.join(" OR ")
-                }
-            } else {
-                filter_parts.join(" OR ")
-            };
-
-            let exact_results = table
-                .query()
-                .only_if(filter_query)
-                .limit(n_results)
-                .execute()
-                .await;
-
-            if let Ok(results) = exact_results {
-                let (exact_ids, exact_dists, exact_docs, exact_metas) = 
-                    Self::process_batches(results, true).await?;
-                
-                // Merge, prioritizing exact matches, and deduplicate
-                let mut seen_ids = std::collections::HashSet::new();
-                
-                let mut merged_ids = Vec::new();
-                let mut merged_dists = Vec::new();
-                let mut merged_docs = Vec::new();
-                let mut merged_metas = Vec::new();
-
-                // Add exact matches first
-                for i in 0..exact_ids.len() {
-                    if !seen_ids.contains(&exact_ids[i]) {
-                        seen_ids.insert(exact_ids[i].clone());
-                        merged_ids.push(exact_ids[i].clone());
-                        merged_dists.push(exact_dists[i]);
-                        merged_docs.push(exact_docs[i].clone());
-                        merged_metas.push(exact_metas[i].clone());
-                    }
-                }
-
-                // Append semantic matches
-                for i in 0..final_ids.len() {
-                    if !seen_ids.contains(&final_ids[i]) {
-                        seen_ids.insert(final_ids[i].clone());
-                        merged_ids.push(final_ids[i].clone());
-                        merged_dists.push(final_dists[i]);
-                        merged_docs.push(final_docs[i].clone());
-                        merged_metas.push(final_metas[i].clone());
-                    }
-                }
-
-                // Truncate to requested limit
-                merged_ids.truncate(n_results);
-                merged_dists.truncate(n_results);
-                merged_docs.truncate(n_results);
-                merged_metas.truncate(n_results);
-
-                final_ids = merged_ids;
-                final_dists = merged_dists;
-                final_docs = merged_docs;
-                final_metas = merged_metas;
-            }
-        }
-
-        Ok(serde_json::json!({
-            "ids": [final_ids],
-            "distances": [final_dists],
-            "documents": [final_docs],
-            "metadatas": [final_metas],
-        }))
-    }
-
-    /// Delete all chunks for a given file path
-    pub async fn delete_by_filepath(&self, file_path: &str) -> Result<(), String> {
-        let db = connect(&self.db_path)
-            .execute()
-            .await
-            .map_err(|e| format!("LanceDB connect error: {}", e))?;
-
-        let table_names = db
-            .table_names()
-            .execute()
-            .await
-            .unwrap_or_default();
-        let filter = format!("`filePath` = '{}'", file_path.replace('\'', "''"));
-
-        for table_name in table_names {
-            if table_name.starts_with("atlas_v2_") {
-                let table = db
-                    .open_table(&table_name)
-                    .execute()
-                    .await
-                    .map_err(|e| format!("Open table error: {}", e))?;
-
-                table
-                    .delete(&filter)
-                    .await
-                    .map_err(|e| format!("Delete error: {}", e))?;
-            }
-        }
+            .map_err(|e| format!("Delete error in local index table {table_name}: {e}"))?;
 
         Ok(())
     }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::{AtlasVectorStore, StoredChunkMetadata, TablePreparation};
 
-    pub async fn get_workspace_stats(&self, workspace_id: &str) -> Result<crate::commands::WorkspaceStats, String> {
-        let db = connect(&self.db_path).execute().await.map_err(|e| e.to_string())?;
-        let table_names = db.table_names().execute().await.unwrap_or_default();
-        
-        let mut total_chunks = 0;
-        let mut file_paths = std::collections::HashSet::new();
-        let mut extensions = std::collections::HashMap::new();
-
-        for tn in table_names {
-            if tn.starts_with("atlas_v2_") && tn != "atlas_v2_edges" {
-                let table = db.open_table(&tn).execute().await.map_err(|e| e.to_string())?;
-                let filter = format!("`workspaceId` = '{}'", Self::escape_filter_string(workspace_id));
-                let results = table.query().only_if(filter).execute().await.map_err(|e| e.to_string())?;
-                let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results).await.map_err(|e| e.to_string())?;
-                
-                for batch in batches {
-                    total_chunks += batch.num_rows();
-                    let fp_col = batch.column_by_name("filePath").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                    
-                    if let Some(col) = fp_col {
-                        for i in 0..batch.num_rows() {
-                            let path = col.value(i);
-                            if file_paths.insert(path.to_string()) {
-                                if let Some(ext) = std::path::Path::new(path).extension().and_then(|e| e.to_str()) {
-                                    *extensions.entry(ext.to_lowercase()).or_insert(0) += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    fn metadata(path: &str, name: &str) -> StoredChunkMetadata {
+        StoredChunkMetadata {
+            file_path: path.to_string(),
+            chunk_index: 0,
+            line_range_start: 1,
+            line_range_end: 4,
+            parent_text: None,
+            parent_line_range_start: None,
+            parent_line_range_end: None,
+            kind: Some("function_item".into()),
+            name: Some(name.into()),
         }
-
-        let total_files = file_paths.len();
-        let mut language_distribution = std::collections::HashMap::new();
-        if total_files > 0 {
-            for (ext, count) in extensions {
-                language_distribution.insert(ext, (count as f64 / total_files as f64) * 100.0);
-            }
-        }
-
-        Ok(crate::commands::WorkspaceStats {
-            total_chunks,
-            total_files,
-            knowledge_coverage: if total_files > 0 { 100.0 } else { 0.0 }, // Basic for now, but real
-            language_distribution,
-        })
     }
 
-    /// Get graph data (nodes and edges) for a workspace
-    pub async fn get_graph_data(&self, workspace_id: &str) -> Result<serde_json::Value, String> {
-        let db = connect(&self.db_path).execute().await.map_err(|e| e.to_string())?;
-        
-        // 1. Get Edges
-        let mut edges = Vec::new();
-        if db.table_names().execute().await.unwrap_or_default().contains(&"atlas_v2_edges".to_string()) {
-            let table = db.open_table("atlas_v2_edges").execute().await.map_err(|e| e.to_string())?;
-            let filter = format!("`workspaceId` = '{}'", Self::escape_filter_string(workspace_id));
-            let results = table.query().only_if(filter).execute().await.map_err(|e| e.to_string())?;
-            let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results).await.map_err(|e| e.to_string())?;
-            
-            for batch in batches {
-                let from_col = batch.column_by_name("fromName").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                let to_col = batch.column_by_name("toName").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                let kind_col = batch.column_by_name("kind").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                
-                for i in 0..batch.num_rows() {
-                    edges.push(serde_json::json!({
-                        "from": from_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
-                        "to": to_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
-                        "kind": kind_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
-                    }));
+    fn first_file_in(directory: &std::path::Path) -> Option<std::path::PathBuf> {
+        for entry in std::fs::read_dir(directory).ok()? {
+            let path = entry.ok()?.path();
+            if path.is_file() {
+                return Some(path);
+            }
+            if path.is_dir() {
+                if let Some(file) = first_file_in(&path) {
+                    return Some(file);
                 }
             }
         }
-
-        // 2. Get Nodes (from chunks that have names)
-        let mut nodes = std::collections::HashMap::new();
-        let table_names = db.table_names().execute().await.unwrap_or_default();
-        for tn in table_names {
-            if tn.starts_with("atlas_v2_") && tn != "atlas_v2_edges" {
-                let table = db.open_table(&tn).execute().await.map_err(|e| e.to_string())?;
-                let filter = format!("`workspaceId` = '{}' AND `name` != ''", Self::escape_filter_string(workspace_id));
-                let results = table.query().only_if(filter).execute().await.map_err(|e| e.to_string())?;
-                let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results).await.map_err(|e| e.to_string())?;
-                
-                for batch in batches {
-                    let name_col = batch.column_by_name("name").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                    let kind_col = batch.column_by_name("kind").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                    let fp_col = batch.column_by_name("filePath").and_then(|c| c.as_any().downcast_ref::<StringArray>());
-                    
-                    for i in 0..batch.num_rows() {
-                        let name = name_col.map(|c| c.value(i).to_string()).unwrap_or_default();
-                        nodes.insert(name.clone(), serde_json::json!({
-                            "id": name,
-                            "kind": kind_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
-                            "filePath": fp_col.map(|c| c.value(i).to_string()).unwrap_or_default(),
-                        }));
-                    }
-                }
-            }
-        }
-
-        Ok(serde_json::json!({
-            "nodes": nodes.values().collect::<Vec<_>>(),
-            "edges": edges,
-        }))
+        None
     }
 
-    /// Drop the table (reset)
-    #[allow(dead_code)]
-    pub async fn reset(&self) -> Result<(), String> {
-        let db = connect(&self.db_path)
-            .execute()
+    #[test]
+    fn workspace_filter_preserves_windows_separators() {
+        assert_eq!(
+            AtlasVectorStore::escape_filter_string(r"\\?\C:\work\atlas"),
+            r"\\?\C:\work\atlas"
+        );
+        assert_eq!(
+            AtlasVectorStore::escape_filter_string("C:\\owner's\\atlas"),
+            "C:\\owner''s\\atlas"
+        );
+    }
+
+    #[tokio::test]
+    async fn lexical_results_follow_committed_update_delete_and_rename() {
+        let root = std::env::temp_dir().join(format!("atlas-retrieval-{}", uuid::Uuid::new_v4()));
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        let workspace = r"\\?\C:\fixture".to_string();
+        let old_path = r"\\?\C:\fixture\src\workspace.rs";
+        store
+            .store_chunks(
+                workspace.clone(),
+                vec!["old".into(), "generic-tree".into()],
+                vec![vec![1.0, 0.0], vec![0.0, 1.0]],
+                vec![
+                    metadata(old_path, "authorize_workspace"),
+                    metadata(r"\\?\C:\fixture\src\FileTree.tsx", "FileTree"),
+                ],
+                vec![
+                    "fn authorize_workspace() {}".into(),
+                    "render tree nodes nodes nodes for the workspace file browser".into(),
+                ],
+            )
             .await
-            .map_err(|e| format!("LanceDB connect error: {}", e))?;
-
-        let table_names = db
-            .table_names()
-            .execute()
+            .unwrap();
+        let first = store
+            .quality_search(vec![1.0, 0.0], "authorize_workspace", 5, &workspace)
             .await
-            .unwrap_or_default();
+            .unwrap();
+        assert_eq!(first["ids"][0][0], "old");
+        let unrelated = store
+            .quality_search(vec![0.0, 1.0], "kubernetes scheduling", 5, &workspace)
+            .await
+            .unwrap();
+        assert!(unrelated["ids"][0].as_array().unwrap().is_empty());
+        let generic_term_collision = store
+            .quality_search(
+                vec![0.0, 1.0],
+                "How does Kubernetes schedule pods across nodes?",
+                5,
+                &workspace,
+            )
+            .await
+            .unwrap();
+        assert!(generic_term_collision["ids"][0]
+            .as_array()
+            .unwrap()
+            .is_empty());
 
-        for table_name in table_names {
-            if table_name.starts_with("atlas_v2_") {
-                db.drop_table(&table_name)
-                    .await
-                    .map_err(|e| format!("Drop table error: {}", e))?;
-            }
-        }
+        store.delete_by_filepath(2, old_path).await.unwrap();
+        let new_path = r"\\?\C:\fixture\src\authorization.rs";
+        store
+            .store_chunks(
+                workspace.clone(),
+                vec!["new".into()],
+                vec![vec![1.0, 0.0]],
+                vec![metadata(new_path, "authorize_workspace")],
+                vec!["fn authorize_workspace() { canonicalize(); }".into()],
+            )
+            .await
+            .unwrap();
+        let renamed = store
+            .quality_search(vec![1.0, 0.0], "authorize_workspace", 5, &workspace)
+            .await
+            .unwrap();
+        assert_eq!(renamed["ids"][0][0], "new");
+        assert!(!renamed["ids"][0]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "old"));
+        let _ = std::fs::remove_dir_all(root);
+    }
 
-        Ok(())
+    #[tokio::test]
+    async fn missing_fragment_rebuilds_only_the_damaged_generated_table() {
+        let root =
+            std::env::temp_dir().join(format!("atlas-lance-recovery-{}", uuid::Uuid::new_v4()));
+        let source = root.join("workspace").join("source.rs");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, "fn authorization() { canonicalize(); }").unwrap();
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        store
+            .store_chunks(
+                "workspace-a".into(),
+                vec!["a".into()],
+                vec![vec![1.0, 0.0]],
+                vec![metadata("workspace/source.rs", "authorization")],
+                vec!["canonicalize authorized workspace root".into()],
+            )
+            .await
+            .unwrap();
+        let data_directory = root.join("atlas_v2_2.lance").join("data");
+        let fragment = first_file_in(&data_directory).expect("test table has a data fragment");
+        std::fs::remove_file(&fragment).unwrap();
+
+        assert!(store.check_table_readable(2).await.is_err());
+        assert_eq!(
+            store.prepare_table_for_index(2).await.unwrap(),
+            TablePreparation::Rebuilt
+        );
+        assert!(store.check_table_readable(2).await.is_err());
+        assert_eq!(
+            std::fs::read_to_string(&source).unwrap(),
+            "fn authorization() { canonicalize(); }"
+        );
+
+        store
+            .store_chunks(
+                "workspace-a".into(),
+                vec!["rebuilt".into()],
+                vec![vec![1.0, 0.0]],
+                vec![metadata("workspace/source.rs", "authorization")],
+                vec!["canonicalize authorized workspace root".into()],
+            )
+            .await
+            .unwrap();
+        assert!(store.check_table_readable(2).await.is_ok());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn recovery_preserves_unrelated_dimension_table_and_workspace_rows() {
+        let root =
+            std::env::temp_dir().join(format!("atlas-lance-blast-radius-{}", uuid::Uuid::new_v4()));
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        store
+            .store_chunks(
+                "workspace-a".into(),
+                vec!["a".into()],
+                vec![vec![1.0, 0.0]],
+                vec![metadata("a.rs", "a")],
+                vec!["damaged table row".into()],
+            )
+            .await
+            .unwrap();
+        store
+            .store_chunks(
+                "workspace-b".into(),
+                vec!["b".into()],
+                vec![vec![1.0, 0.0, 0.0]],
+                vec![metadata("b.rs", "authorization")],
+                vec!["workspace b canonicalization remains available".into()],
+            )
+            .await
+            .unwrap();
+        let fragment = first_file_in(&root.join("atlas_v2_2.lance").join("data"))
+            .expect("test table has a data fragment");
+        std::fs::remove_file(fragment).unwrap();
+
+        assert_eq!(
+            store.prepare_table_for_index(2).await.unwrap(),
+            TablePreparation::Rebuilt
+        );
+        let other = store
+            .similarity_search(vec![1.0, 0.0, 0.0], 5, Some(vec!["workspace-b".into()]))
+            .await
+            .unwrap();
+        assert_eq!(other["ids"][0][0], "b");
+        let _ = std::fs::remove_dir_all(root);
     }
 }

@@ -3,6 +3,9 @@
 
 # 🤖 Atlas Agents & Personas
 
+> [!NOTE]
+> Archived pre-1.0 agent concept. Atlas 1.0 no longer exposes personas, arbitrary shell tools, or code-application actions. This file is preserved as historical design context and does not describe the retained product surface.
+
 Atlas is designed not just as a chat interface, but as an **Agentic AI Assistant**. This means it can reason through complex problems, use tools to interact with your workspace, and adopt specialized roles (Personas) to better suit your current task.
 
 ## 🧠 Reasoning & Architecture

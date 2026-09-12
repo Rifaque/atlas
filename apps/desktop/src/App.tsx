@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { LandingScreen } from './components/LandingScreen';
 import { WorkspaceLayout } from './components/WorkspaceLayout';
-import { UpdateChecker } from './components/UpdateChecker';
-import { ToastProvider } from './lib/toast';
-import { getActiveWorkspaces, type Workspace } from './lib/workspaces';
+import { ToastProvider } from './components/ToastProvider';
+import { getActiveWorkspace, setActiveWorkspace as persistActiveWorkspace, type Workspace } from './lib/workspaces';
 import { initTheme } from './lib/theme';
+import { isWorkspaceAuthorized } from './lib/api';
+import { migrateLegacyCredentials } from './lib/settings';
 
 // Initialize theme before first paint
 initTheme();
@@ -12,13 +13,12 @@ initTheme();
 // loading screen when you first open the app
 function StartupSplash() {
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-bg-main" role="main" aria-label="Atlas is starting">
-      <div className="text-center space-y-3 animate-in fade-in duration-700">
-        <div className="text-3xl font-bold tracking-tighter bg-gradient-to-br from-text-primary to-text-secondary bg-clip-text text-transparent">
-          Atlas
-        </div>
-        <div className="flex items-center gap-2 justify-center text-text-secondary text-sm" aria-live="polite">
-          <div className="w-3 h-3 rounded-full border-2 border-accent border-t-transparent animate-spin" role="progressbar" aria-label="Starting" />
+    <div className="startup" role="main" aria-label="Atlas is starting">
+      <div className="startup__mark" aria-hidden="true">A</div>
+      <div>
+        <strong>Atlas</strong>
+        <div className="startup__status" aria-live="polite">
+          <span className="startup__spinner" role="progressbar" aria-label="Starting" />
           Starting…
         </div>
       </div>
@@ -26,46 +26,45 @@ function StartupSplash() {
   );
 }
 
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { OverlayChat } from './components/OverlayChat';
-
 // Main app component
 function App() {
-  const [activeWorkspaces, setActiveWorkspaces] = useState<Workspace[]>([]);
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [checked, setChecked] = useState(false);
-  const [isOverlay, setIsOverlay] = useState(false);
 
   // Restore last workspaces on mount
   useEffect(() => {
-    const checkWindow = async () => {
-      const win = getCurrentWindow();
-      if (win.label === 'overlay') {
-        setIsOverlay(true);
+    const restoreWorkspace = async () => {
+      try {
+        await migrateLegacyCredentials();
+      } catch (error) {
+        console.warn('Legacy credentials could not be migrated; re-enter them in Settings.', error);
       }
-      const ws = getActiveWorkspaces();
-      setActiveWorkspaces(ws);
+      const workspace = getActiveWorkspace();
+      const authorized = workspace
+        ? await isWorkspaceAuthorized(workspace.folderPath).catch(() => false)
+        : false;
+      setActiveWorkspace(authorized ? workspace : null);
       setChecked(true);
     };
-    checkWindow();
+    restoreWorkspace();
   }, []);
 
   if (!checked) return <StartupSplash />;
-  if (isOverlay) return <OverlayChat />;
 
   return (
     <ToastProvider>
-      <div key={activeWorkspaces.length > 0 ? 'workspace' : 'landing'}
-        className="animate-in fade-in slide-in-from-bottom-2 duration-300"
-      >
-        {activeWorkspaces.length > 0
+      <div key={activeWorkspace ? 'workspace' : 'landing'} className="app-view">
+        {activeWorkspace
           ? <WorkspaceLayout
-            workspaces={activeWorkspaces}
-            onLeaveWorkspace={() => setActiveWorkspaces([])}
+            workspace={activeWorkspace}
+            onLeaveWorkspace={() => {
+              persistActiveWorkspace(null);
+              setActiveWorkspace(null);
+            }}
           />
-          : <LandingScreen onIndexed={(ws) => setActiveWorkspaces([ws])} />
+          : <LandingScreen onIndexed={(workspace) => setActiveWorkspace(workspace)} />
         }
       </div>
-      <UpdateChecker />
     </ToastProvider>
   );
 }

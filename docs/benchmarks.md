@@ -1,5 +1,9 @@
 # Atlas Performance Benchmarks
 
+> [!NOTE]
+> Archived pre-refresh measurements. These values have not been revalidated against the reduced Atlas 1.0 product and must not be presented as current product metrics.
+> Current Phase 4 retrieval evaluation and measured stage timings are recorded in `audits/atlas-phase-4-retrieval-quality-report.md`.
+
 *Last Updated: March 2026 | Version: 0.10.0*
 
 These benchmarks represent typical performance on a modern development machine (Windows 10, i7/Ryzen 7, 16GB RAM).

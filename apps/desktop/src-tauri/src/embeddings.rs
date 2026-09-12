@@ -1,5 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Debug, Serialize)]
 struct EmbedRequest {
@@ -30,7 +31,11 @@ pub async fn generate_embeddings(
     model: &str,
     host: &str,
 ) -> Result<Vec<Vec<f32>>, String> {
-    let client = Client::new();
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to configure embedding client: {e}"))?;
     let host = if host.is_empty() {
         "http://127.0.0.1:11434"
     } else {

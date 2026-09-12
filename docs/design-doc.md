@@ -1,7 +1,10 @@
 # Atlas Design Doc (UI/UX)
 
+> [!NOTE]
+> Archived pre-refresh design reference. It describes product surfaces retired in Atlas 1.0 Phase 2 and is not the current product contract. The implementation authority is the [Atlas 1.0 UX specification](design/atlas-1.0-ux-spec.md).
+
 > [!IMPORTANT]
-> **CRUCIAL FILE**: This is the authoritative UI/UX Design Document for Atlas. Do not delete or move.
+> **CRUCIAL FILE**: Preserve this historical design document. It is not the current Atlas 1.0 product contract.
 
 ## 1. Design Philosophy: "Dark Glassmorphism"
 Atlas follows a **Calm, Technical, and Modern** aesthetic. The goal is a "focused workstation" feel that recedes into the background to let the user work.

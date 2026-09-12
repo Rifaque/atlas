@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ChevronRight, ChevronDown, FileText, Folder, FolderOpen, Plus } from 'lucide-react';
+import { useState, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Pin } from 'lucide-react';
 import type { FileNode } from '../lib/api';
+import { IconButton } from './ui';
 
 interface FileTreeProps {
     nodes: FileNode[];
@@ -9,76 +10,60 @@ interface FileTreeProps {
     onOpenFile: (path: string) => void;
 }
 
-function TreeNode({ node, pinnedFiles, onPinFile, onOpenFile, depth }: {
-    node: FileNode;
-    pinnedFiles?: string[];
-    onPinFile: (path: string) => void;
-    onOpenFile: (path: string) => void;
-    depth: number;
-}) {
-    const [expanded, setExpanded] = useState(depth < 1);
-    const isPinned = pinnedFiles?.includes(node.path);
+function focusSibling(event: KeyboardEvent<HTMLButtonElement>, direction: 1 | -1) {
+    const tree = event.currentTarget.closest('[role="tree"]');
+    const items = Array.from(tree?.querySelectorAll<HTMLButtonElement>('[role="treeitem"]') ?? []);
+    const index = items.indexOf(event.currentTarget);
+    items[index + direction]?.focus();
+}
 
-    if (node.type === 'directory') {
-        return (
-            <div>
-                <button
-                    onClick={() => setExpanded(e => !e)}
-                    className="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.04)] text-text-secondary hover:text-text-primary transition-colors text-left group"
-                    style={{ paddingLeft: `${8 + depth * 12}px` }}
-                >
-                    {expanded
-                        ? <ChevronDown size={12} className="shrink-0 opacity-60" />
-                        : <ChevronRight size={12} className="shrink-0 opacity-60" />
-                    }
-                    {expanded
-                        ? <FolderOpen size={13} className="shrink-0 text-yellow-400/70" />
-                        : <Folder size={13} className="shrink-0 text-yellow-400/70" />
-                    }
-                    <span className="truncate text-xs">{node.name}</span>
-                </button>
-                {expanded && node.children && (
-                    <div>
-                        {node.children.map(child => (
-                            <TreeNode key={child.path} node={child} pinnedFiles={pinnedFiles} onPinFile={onPinFile} onOpenFile={onOpenFile} depth={depth + 1} />
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    }
+function TreeNode({ node, pinnedFiles = [], onPinFile, onOpenFile, depth }: FileTreeProps & { node: FileNode; depth: number }) {
+    const [expanded, setExpanded] = useState(depth < 1);
+    const isDirectory = node.type === 'directory';
+    const isPinned = pinnedFiles.includes(node.path);
+    const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); focusSibling(event, 1); }
+        if (event.key === 'ArrowUp') { event.preventDefault(); focusSibling(event, -1); }
+        if (isDirectory && event.key === 'ArrowRight') { event.preventDefault(); setExpanded(true); }
+        if (isDirectory && event.key === 'ArrowLeft') { event.preventDefault(); setExpanded(false); }
+    };
 
     return (
-        <div
-            className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.04)] group transition-colors cursor-pointer"
-            style={{ paddingLeft: `${8 + depth * 12}px` }}
-            onClick={() => onOpenFile(node.path)}
-        >
-            <FileText size={12} className={`shrink-0 ${isPinned ? 'text-accent' : 'text-text-secondary/60'}`} />
-            <span className="truncate text-xs text-text-secondary group-hover:text-text-primary transition-colors flex-1">{node.name}</span>
-            {!isPinned && (
+        <div role="none">
+            <div className="file-tree-row" style={{ paddingLeft: 6 + depth * 14 }}>
                 <button
-                    onClick={e => { e.stopPropagation(); onPinFile(node.path); }}
-                    className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 hover:text-accent transition-all text-text-secondary"
-                    title="Add to Context"
+                    type="button"
+                    role="treeitem"
+                    aria-level={depth + 1}
+                    aria-expanded={isDirectory ? expanded : undefined}
+                    className="file-tree-row__main"
+                    onKeyDown={onKeyDown}
+                    onClick={() => isDirectory ? setExpanded(value => !value) : onOpenFile(node.path)}
                 >
-                    <Plus size={11} />
+                    {isDirectory ? (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : <span className="file-tree-spacer" />}
+                    {isDirectory ? (expanded ? <FolderOpen size={14} /> : <Folder size={14} />) : <FileText size={14} />}
+                    <span>{node.name}</span>
                 </button>
+                {!isDirectory && (
+                    <IconButton label={isPinned ? `${node.name} is pinned` : `Pin ${node.name}`} disabled={isPinned} onClick={() => onPinFile(node.path)}>
+                        <Pin size={12} />
+                    </IconButton>
+                )}
+            </div>
+            {isDirectory && expanded && node.children && (
+                <div role="group">
+                    {node.children.map(child => <TreeNode key={child.path} node={child} nodes={[]} pinnedFiles={pinnedFiles} onPinFile={onPinFile} onOpenFile={onOpenFile} depth={depth + 1} />)}
+                </div>
             )}
         </div>
     );
 }
 
-export function FileTree({ nodes, pinnedFiles, onPinFile, onOpenFile }: FileTreeProps) {
-    if (nodes.length === 0) return (
-        <div className="text-xs text-text-secondary/40 text-center py-4">No indexed files found.</div>
-    );
-
+export function FileTree(props: FileTreeProps) {
+    if (!props.nodes.length) return <p className="panel-empty">No supported files found.</p>;
     return (
-        <div className="text-sm">
-            {nodes.map(node => (
-                <TreeNode key={node.path} node={node} pinnedFiles={pinnedFiles} onPinFile={onPinFile} onOpenFile={onOpenFile} depth={0} />
-            ))}
+        <div className="file-tree" role="tree" aria-label="Workspace files">
+            {props.nodes.map(node => <TreeNode key={node.path} {...props} node={node} depth={0} />)}
         </div>
     );
 }

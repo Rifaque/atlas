@@ -1,78 +1,134 @@
 # Atlas
 
-<div align="center">
+Atlas is a local-first workspace intelligence desktop app that indexes one codebase or document set, answers grounded questions with inspectable evidence, and makes every cloud transfer explicit and opt-in.
 
-![Atlas Thumbnail](assets/atlas-thumbnail.png)
+**Open → Index → Ask / Find → Inspect Evidence → Follow Up**
 
-[![Version](https://img.shields.io/badge/version-0.10.0-blue.svg)](package.json)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/Rifaque/atlas/actions)
-[![Ollama](https://img.shields.io/badge/LLM-Local_First-white.svg)](https://ollama.com)
+## Atlas 1.0
 
-**The AI-First Local Workspace Assistant.**  
-*Understand. Search. Build. All on your own machine.*
+Atlas 1.0 officially ships for **Windows x64**.
 
-</div>
+- **Linux:** configured but unverified; not part of the 1.0 release.
+- **macOS:** unsupported for 1.0.
 
----
+The Windows installer is NSIS only. Atlas 1.0 is currently distributed as an
+unsigned Windows installer, so Windows SmartScreen may show an Unknown Publisher
+warning. Verify the published SHA-256 checksum before installing.
 
-Atlas is an open-source, local-first workspace intelligence tool designed for developers who value privacy and performance. By combining high-speed Rust-based indexing with state-of-the-art Local LLMs, Atlas transforms your project folder into a searchable, queryable knowledge base.
+## Core capabilities
 
-## ✨ Core Pillars
+- Local workspace indexing with Ollama embeddings.
+- Local Ollama generation, with optional OpenRouter generation.
+- Ask and Find workflows backed by hybrid semantic and BM25 retrieval with
+  reciprocal-rank fusion (RRF).
+- Conservative no-evidence behavior: questions without enough workspace evidence
+  can be rejected instead of answered from general model knowledge.
+- Inspectable evidence, source previews, and pinned context.
+- Workspace-scoped history and backend-authorized workspace access.
+- Incremental indexing, bounded context assembly, and damaged generated-index
+  detection/recovery.
+- An explicit local/cloud privacy boundary.
 
-🚀 **Privacy-First RAG**  
-Your code never leaves your machine. Atlas uses a local **LanceDB** vector store and **nomic-embed-text** to index your files with zero cloud leakage.
+Atlas 1.0 does not include agents, arbitrary shell execution, code-application
+actions, Graph/Insights surfaces, personas, web search, vision attachments,
+Overlay Chat, or multi-model routing.
 
-🕸️ **GraphRAG Intelligence**  
-Beyond raw vectors. Atlas uses **Tree-Sitter** to extract semantic code relationships, building a knowledge graph of your architecture for deeper reasoning.
+## Install on Windows
 
-🕒 **Timeline Intelligence**  
-Ask *"What changed since yesterday?"* or *"Summarize last week's commits."* Atlas integrates directly with your filesystem and Git history to provide time-aware context.
+1. Download `Atlas_1.0.0_x64-setup.exe` from the
+   [Atlas 1.0.0 release](https://github.com/Rifaque/atlas/releases/tag/v1.0.0).
+2. Verify its SHA-256 checksum against the value published on that release.
+3. Run the installer. SmartScreen may show an Unknown Publisher warning because
+   this installer is unsigned.
+4. Launch Atlas and ensure Ollama is running.
+5. Open a workspace through the native folder picker.
+6. Select an embedding model, such as `nomic-embed-text:latest`, and let Atlas
+   index the workspace.
+7. Use Ask or Find, inspect evidence, and follow up in the same workspace.
 
-🛡️ **Secret Shield**  
-Safe cloud experimentation. If you choose to use OpenRouter, Atlas automatically scans outgoing messages for API keys or PII before they ever hit the wire.
+`install.ps1` and `install.sh` are developer source-bootstrap helpers, not Atlas
+application installers.
 
-🤖 **Agentic Design**  
-Purpose-built personas (Architect, Writer, Security Auditor) equipped with bounded shell tools to help verify code and validate architecture.
+## Requirements
 
----
+- Windows 10 or 11 x64.
+- [Ollama](https://ollama.com/) reachable for indexing and local generation.
+- An embedding-capable Ollama model. `nomic-embed-text:latest` is the tested and
+  recommended Atlas 1.0 embedding model.
+- A separate compatible Ollama generation model for local Ask.
 
-## 🛠️ Tech Stack
+OpenRouter is optional and used only for explicitly enabled cloud generation.
 
-Atlas is a native, high-performance desktop application:
-- **Engine**: Tauri 2 (Rust)
-- **Frontend**: React 18 & TypeScript
-- **Intelligence**: Ollama (Inference) + Tree-Sitter (Parsing)
-- **Storage**: LanceDB (Vector) + Apache Arrow
+## Privacy and security boundary
 
----
+With default local Ollama-only use, workspace indexing, embeddings, generation,
+and workspace evidence remain on the machine.
 
-## 🏃 Quick Start
+If OpenRouter is explicitly enabled, the relevant request content may be sent to
+that provider: the user query, retrieved evidence, pinned context, relevant
+history, and enabled Git/system context. Atlas treats cloud use as opt-in and
+inspects the complete bounded outbound payload before sending it. OpenRouter
+credentials are Rust-owned through the operating-system credential store.
 
-1.  **Download**: Grab the latest installer from [Releases](https://github.com/Rifaque/atlas/releases).
-2.  **Run Ollama**: Ensure [Ollama](https://ollama.com) is running and you have pulled your models:
-    ```bash
-    ollama pull nomic-embed-text  # Required for indexing
-    ollama pull llama3.2          # Recommended for chat
-    ```
-3.  **Index**: Launch Atlas, select your project folder, and start chatting.
+Atlas authorizes workspace access in its backend. Requested files are canonicalized
+and constrained to the authorized workspace root; arbitrary shell and unrestricted
+filesystem IPC are not part of Atlas 1.0.
 
----
+## Evidence and indexing
 
-## 📖 Documentation
+Atlas answers against indexed workspace evidence. Sources can be inspected in the
+app, while no-evidence queries can be rejected rather than answered from model
+knowledge. Displayed evidence represents material supplied or considered for an
+answer, not guaranteed sentence-level attribution.
 
-For deep dives into the Atlas internals, refer to our consolidated documentation:
+Atlas watches supported files and supports incremental indexing. Changing the
+embedding model requires rebuilding the index. Atlas can detect a damaged generated
+index and rebuild the required generated retrieval state without touching source
+workspace files.
 
-- 🎯 **[PRD](docs/prd.md)** — Product requirements and vision.
-- 🏗️ **[Architecture](docs/architecture.md)** — System design and RAG pipeline details.
-- 💻 **[Tech Stack](docs/tech-stack.md)** — Component-by-component technology breakdown.
-- 🧠 **[Agents](agents.md)** — Documentation of our agentic personas and core intelligence.
-- 🏗️ **[Development Guide](BUILD.md)** — Build instructions and platform dependencies.
+### Retrieval pipeline
 
----
+`Semantic candidates + BM25 candidates → RRF → relevance classification → deduplication/diversity → bounded evidence selection`
 
-## ⚖️ License
+## Current limitations
 
-Atlas is released under the **MIT License**. See [LICENSE](LICENSE) for details.
+- The Windows installer is unsigned; SmartScreen/Unknown Publisher warnings are expected.
+- Linux is configured but unverified for 1.0; macOS is unsupported.
+- The updater is disabled.
+- PDF and generic-file chunking is basic.
+- Relevance calibration remains heuristic.
+- Context budgeting is approximate rather than tokenizer-exact.
+- Evidence is source-context material, not claim-level attribution.
 
-*Built for the next generation of local-first development.*
+## Developer setup
+
+Requirements: Node.js `^20.19.0 || >=22.12.0`, pnpm 10.4.1, Rust 1.77.2+,
+`protoc`, and the platform-specific Tauri prerequisites.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm version:check -- --expected 1.0.0
+pnpm --filter desktop test
+pnpm --filter desktop lint
+pnpm --filter desktop build
+pnpm --filter desktop tauri dev
+```
+
+For the Windows x64 NSIS package, run from `apps/desktop`:
+
+```powershell
+pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
+```
+
+Atlas 1.0 does not use MSI as a release artifact. See [BUILD.md](BUILD.md) and
+the [release checklist](docs/release/atlas-1.0-release-checklist.md) for release
+process details.
+
+## Documentation and license
+
+- [Architecture](docs/architecture.md)
+- [Product requirements](docs/prd.md)
+- [Atlas 1.0 UX specification](docs/design/atlas-1.0-ux-spec.md)
+- [Release-readiness report](docs/audits/atlas-1.0-release-readiness-report.md)
+- [MIT License](LICENSE)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)

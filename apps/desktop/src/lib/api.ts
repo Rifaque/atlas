@@ -1,35 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { v4 as uuidv4 } from 'uuid';
+import type { EvidenceRef } from './chats';
 
 // ─── Models & Status ────────────────────────────────────────────────────────
 
-export async function fetchModels(): Promise<string[]> {
+export async function fetchModels(ollamaHost?: string): Promise<string[]> {
     try {
-        return await invoke<string[]>('list_models', {});
+        return await invoke<string[]>('list_models', { ollamaHost: ollamaHost || null });
     } catch {
         return [];
     }
 }
 
-export async function fetchOpenRouterModels(apiKey?: string): Promise<{ free: string[]; paid: string[] }> {
+export async function checkOllamaStatus(ollamaHost?: string): Promise<string> {
     try {
-        const data = await invoke<{ free: { id: string }[]; paid: { id: string }[] }>(
-            'list_openrouter_models',
-            { apiKey: apiKey || null }
-        );
-        return {
-            free: data.free.map((m: { id: string }) => m.id),
-            paid: data.paid.map((m: { id: string }) => m.id),
-        };
-    } catch {
-        return { free: [], paid: [] };
-    }
-}
-
-export async function checkOllamaStatus(): Promise<string> {
-    try {
-        return await invoke<string>('check_status', {});
+        return await invoke<string>('check_status', { ollamaHost: ollamaHost || null });
     } catch {
         return 'offline';
     }
@@ -37,12 +22,20 @@ export async function checkOllamaStatus(): Promise<string> {
 
 // ─── Indexing ────────────────────────────────────────────────────────────────
 
-export async function startIndexing(folderPath: string, model: string): Promise<string> {
-    return await invoke<string>('start_indexing', { folderPath, model });
+export async function selectWorkspace(): Promise<string | null> {
+    return invoke<string | null>('select_workspace');
 }
 
-export async function startWatcher(folderPath: string, model: string): Promise<void> {
-    await invoke('start_watcher', { folderPath, model });
+export async function isWorkspaceAuthorized(folderPath: string): Promise<boolean> {
+    return invoke<boolean>('is_workspace_authorized', { folderPath });
+}
+
+export async function startIndexing(folderPath: string, model: string, ollamaHost?: string): Promise<string> {
+    return await invoke<string>('start_indexing', { folderPath, model, ollamaHost: ollamaHost || null });
+}
+
+export async function startWatcher(folderPath: string, model: string, ollamaHost?: string): Promise<void> {
+    await invoke('start_watcher', { folderPath, model, ollamaHost: ollamaHost || null });
 }
 
 export async function stopWatcher(folderPath: string): Promise<void> {
@@ -52,8 +45,10 @@ export async function stopWatcher(folderPath: string): Promise<void> {
 export interface IndexProgress {
     status: string;
     processedFiles?: number;
+    totalFiles?: number;
     totalChunks?: number;
     error?: string;
+    recoveryMessage?: string;
 }
 
 /** Listen for index progress events. Returns an unlisten function. */
@@ -66,33 +61,32 @@ export async function listenIndexProgress(
     });
 }
 
-export interface WorkspaceStats {
-    total_chunks: number;
-    total_files: number;
-    knowledge_coverage: number;
-    language_distribution: Record<string, number>;
+export interface IndexHealth {
+    status: 'not_indexed' | 'queued' | 'running' | 'ready' | 'failed' | 'incompatible';
+    fileCount: number;
+    chunkCount: number;
+    embeddingModel: string | null;
+    lastCompletedAt: number | null;
+    error: string | null;
 }
 
-export async function fetchIndexStats(workspaceId: string): Promise<WorkspaceStats> {
-    try {
-        return await invoke<WorkspaceStats>('get_index_stats', { workspaceId });
-    } catch {
-        return { total_chunks: 0, total_files: 0, knowledge_coverage: 0, language_distribution: {} };
-    }
+export async function fetchIndexHealth(workspaceId: string): Promise<IndexHealth> {
+    return invoke<IndexHealth>('get_index_health', { workspaceId });
 }
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
 
-export interface ChatStreamEvent {
-    type: 'chunk' | 'citations' | 'suggestions' | 'error' | 'done';
-    data?: any;
-}
+export type ChatStreamEvent =
+    | { type: 'chunk'; data?: { chunk?: string } }
+    | { type: 'citations'; data?: EvidenceRef[] }
+    | { type: 'suggestions'; data?: { suggestions?: string[] } }
+    | { type: 'error'; data?: { error?: string; code?: string } }
+    | { type: 'done'; data?: undefined };
 
 export interface ChatRequest {
     query: string;
     model: string;
     provider?: string;
-    apiKey?: string;
     ollamaHost?: string;
     manualFiles?: string[];
     systemPrompt?: string;
@@ -100,73 +94,65 @@ export interface ChatRequest {
     history?: { role: string; content: string }[];
     /** The model used for indexing — used for query embedding to match vector dimensions */
     embeddingModel?: string;
-    /** Active persona ID (e.g. "architect", "security-auditor") */
-    persona?: string;
-    /** Web search: enrich context with web results */
-    webSearchEnabled?: boolean;
-    /** Web search: API key for the provider */
-    webSearchApiKey?: string;
-    /** Web search: provider name ("tavily" or "serper") */
-    webSearchProvider?: string;
-    /** Vision: Attach images as base64 encoded strings */
-    images?: string[];
-    /** GraphRAG: Search across multiple workspace IDs */
-    workspaceIds?: string[];
+    allowCloud?: boolean;
 }
 
 /** Start a chat and return the event ID + unlisten function. */
 export async function startChat(
     request: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,
+    onReady?: (eventId: string, unlisten: UnlistenFn) => void,
 ): Promise<{ eventId: string; unlisten: UnlistenFn }> {
-    const eventId = `chat-stream-${uuidv4()}`;
+    const eventId = `chat-stream-${crypto.randomUUID()}`;
 
     const unlisten = await listen<ChatStreamEvent>(eventId, (event) => {
         onEvent(event.payload);
     });
 
+    // Expose the listener before invoking Rust because a local shortcut may emit
+    // and finish before the invoke promise resolves.
+    onReady?.(eventId, unlisten);
     await invoke('start_chat', { eventId, request });
 
     return { eventId, unlisten };
 }
 
-// ─── Search ──────────────────────────────────────────────────────────────────
-
-export interface SearchResult {
-    filePath: string;
-    snippet: string;
-    lineRangeStart?: number;
+export async function stopChat(eventId: string): Promise<void> {
+    await invoke('stop_chat', { eventId });
 }
 
-export async function searchFiles(query: string, model: string, folderPath?: string, workspaceIds?: string[]): Promise<SearchResult[]> {
-    try {
-        return await invoke<SearchResult[]>('search_files', {
-            query,
-            model,
-            folderPath: folderPath || null,
-            workspaceIds: workspaceIds || null,
-        });
-    } catch {
-        return [];
-    }
+// ─── Search ──────────────────────────────────────────────────────────────────
+
+export interface EvidenceResult extends EvidenceRef {
+    content: string;
+    sourceType: 'workspace_file' | 'pinned_workspace_file';
+}
+
+export interface SearchResult extends EvidenceResult {
+    filePath: string;
+    snippet: string;
+}
+
+export async function searchFiles(query: string, model: string, folderPath: string, ollamaHost?: string): Promise<SearchResult[]> {
+    return invoke<SearchResult[]>('search_files', {
+        query,
+        model,
+        folderPath,
+        ollamaHost: ollamaHost || null,
+    });
 }
 
 // ─── File Operations ─────────────────────────────────────────────────────────
 
-export async function executeShellCommand(cmd: string, args: string[], cwd?: string): Promise<{ stdout: string, stderr: string, code: number }> {
-    try {
-        return await invoke('execute_shell_command', { cmd, args, cwd });
-    } catch (e: any) {
-        throw new Error(e);
-    }
-}
-
-export async function applyDiff(filepath: string, originalContent: string, newContent: string): Promise<void> {
-    try {
-        await invoke('apply_diff', { filepath, originalContent, newContent });
-    } catch (e: any) {
-        throw new Error(e);
-    }
+export async function getIndexJob(jobId: string): Promise<IndexProgress> {
+    const job = await invoke<{ status: string; processed_files: number; total_files: number; total_chunks: number; error?: string }>('get_index_job', { jobId });
+    return {
+        status: job.status,
+        processedFiles: job.processed_files,
+        totalFiles: job.total_files,
+        totalChunks: job.total_chunks,
+        error: job.error,
+    };
 }
 
 export interface FileNode {
@@ -184,52 +170,18 @@ export async function fetchFileTree(folderPath: string): Promise<FileNode[]> {
     }
 }
 
-export async function fetchFileContent(filePath: string): Promise<string> {
-    try {
-        const data = await invoke<{ content: string; totalLines: number }>('read_file', {
-            filePath,
-            start: null,
-            end: null,
-        });
-        return data.content || '';
-    } catch {
-        return '';
-    }
+export interface FileContent {
+    content: string;
+    totalLines: number;
 }
 
-// ─── Secret Shield ───────────────────────────────────────────────────────────
-
-export interface SecretMatch {
-    kind: string;
-    preview: string;
-    offset: number;
-}
-
-export async function scanSecrets(text: string): Promise<SecretMatch[]> {
-    try {
-        return await invoke<SecretMatch[]>('scan_secrets', { text });
-    } catch {
-        return [];
-    }
-}
-
-// ─── Timeline Intelligence ────────────────────────────────────────────────────────
-
-export interface TimelineEvent {
-    file_path: string;
-    relative_path: string;
-    mtime: number;
-    change_type: string;
-    current_content: string | null;
-}
-
-/** Fetch timeline events for the workspace folder within the past `hours` hours. */
-export async function fetchTimeline(folderPath: string, hours: number): Promise<TimelineEvent[]> {
-    try {
-        return await invoke<TimelineEvent[]>('get_timeline', { folderPath, hours });
-    } catch {
-        return [];
-    }
+export async function fetchFileContent(workspacePath: string, filePath: string): Promise<FileContent> {
+    return invoke<FileContent>('read_file', {
+        filePath,
+        workspacePath,
+        start: null,
+        end: null,
+    });
 }
 
 // ─── Git Awareness ────────────────────────────────────────────────────────────
@@ -247,14 +199,4 @@ export async function fetchGitContext(folderPath: string): Promise<GitContext | 
     } catch {
         return null;
     }
-}
-
-
-
-// ─── Legacy compatibility ────────────────────────────────────────────────────
-// These map to the old function names used by some components
-
-export async function fetchOllamaStatus(): Promise<boolean> {
-    const status = await checkOllamaStatus();
-    return status === 'online';
 }

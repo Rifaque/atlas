@@ -11,7 +11,8 @@ pub struct GitContext {
 }
 
 pub fn get_git_context<P: AsRef<Path>>(repo_path: P) -> Result<GitContext, String> {
-    let repo = Repository::discover(repo_path).map_err(|e| format!("Not a git repository: {}", e))?;
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Workspace root is not a Git repository: {e}"))?;
 
     // Get active branch
     let head = repo.head().map_err(|e| e.to_string())?;
@@ -21,7 +22,7 @@ pub fn get_git_context<P: AsRef<Path>>(repo_path: P) -> Result<GitContext, Strin
     let mut opts = StatusOptions::new();
     opts.include_untracked(true);
     let statuses = repo.statuses(Some(&mut opts)).map_err(|e| e.to_string())?;
-    
+
     let mut uncommitted_files = Vec::new();
     for entry in statuses.iter() {
         if let Some(path) = entry.path() {
@@ -33,9 +34,11 @@ pub fn get_git_context<P: AsRef<Path>>(repo_path: P) -> Result<GitContext, Strin
     let mut recent_commits = Vec::new();
     let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
     revwalk.push_head().map_err(|e| e.to_string())?;
-    
+
     for (i, id) in revwalk.enumerate() {
-        if i >= 5 { break; }
+        if i >= 5 {
+            break;
+        }
         if let Ok(id) = id {
             if let Ok(commit) = repo.find_commit(id) {
                 let msg = commit.summary().unwrap_or("").to_string();

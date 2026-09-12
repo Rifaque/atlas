@@ -1,35 +1,37 @@
-# Atlas Tech Stack
+# Atlas 1.0 Tech Stack
 
 > [!IMPORTANT]
-> **CRUCIAL FILE**: This is the authoritative Technical Stack Document for Atlas. Do not delete or move.
+> **CRUCIAL FILE**: Do not delete or move this document.
 
-## 1. Desktop & Infrastructure
-- **Framework**: [Tauri v2](https://v2.tauri.app/) — Native Rust shell for the application lifecycle.
-- **Runtime**: Node.js 20+ (Build-time only).
-- **CI/CD**: GitHub Actions (Signed Windows/MSI, Linux AppImage/Debian).
+## Desktop
 
-## 2. Frontend (The Interface)
-- **UI Framework**: React 18
-- **Language**: TypeScript
-- **Styling**: Vanilla CSS (Tailwind CSS for utility layers).
-- **Icons**: Lucide React
-- **State Management**: Zustand
-- **Animations**: Framer Motion (Subtle transitions).
+- Tauri 2 with Rust 1.77.2+
+- Narrow Tauri IPC and event streams
+- Folder-selection dialog plugin only
 
-## 3. Backend (The Engine)
-- **Language**: **Rust** (Shared logic between Tauri commands and local agents).
-- **Database**: [LanceDB](https://lancedb.com/) — Native Rust vector database.
-- **Code Intelligence**: [Tree-Sitter](https://tree-sitter.github.io/tree-sitter/) — Structural semantic parsing.
-- **File Watching**: [Notify](https://docs.rs/notify/latest/notify/) — Real-time FS change detection.
-- **Crawler**: `ignore` crate — High-performance `.gitignore` aware file walking.
+## Frontend
 
-## 4. AI & Inference
-- **Local Provider**: [Ollama](https://ollama.com/) — Multi-model local inference.
-- **Embedding Model**: `nomic-embed-text` (Hardcoded for 768d consistency).
-- **Cloud Gateway**: [OpenRouter](https://openrouter.ai/) — API fallback for advanced cloud models.
+- React 19 and TypeScript
+- Vite and Tailwind CSS utility layers
+- Local hooks/reducers for domain state; no global state library
+- React Markdown for generated text and Lucide for icons
 
-## 5. Development Workflow
-- **Package Manager**: `pnpm`
-- **Build Tool**: Vite
-- **Monorepo Manager**: Turborepo
-- **Documentation**: Markdown (Standardized PRD, Design, Architecture, Tech Stack).
+## Backend
+
+- LanceDB and Apache Arrow for local vector data
+- Tree-sitter for language-aware code chunking
+- `ignore` for `.gitignore`-aware crawling
+- `notify` for changed-file watching
+- `git2` for read-only basic Git context
+- OS credential storage through `keyring`
+
+## Inference
+
+- Ollama for local embeddings and local generation
+- OpenRouter as an optional, explicitly authorized generation provider
+- Embedding and generation models are separate contracts
+
+## Development
+
+- Node.js 20+, pnpm 10.4.1, Turborepo
+- Vitest, ESLint, TypeScript, Cargo test, Clippy, and rustfmt
