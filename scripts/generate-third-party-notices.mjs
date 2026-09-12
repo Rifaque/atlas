@@ -168,11 +168,32 @@ function render() {
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
+function inventoryKeys(document) {
+  return new Set(
+    [...document.matchAll(/^\| (JavaScript|Rust) \| ([^|]+) \| ([^|]+) \|/gm)]
+      .map(([, ecosystem, name, version]) => `${ecosystem}:${name.trim()}@${version.trim()}`),
+  );
+}
+
+function reportMismatch(expected, generated) {
+  const expectedKeys = inventoryKeys(expected);
+  const generatedKeys = inventoryKeys(generated);
+  const missing = [...expectedKeys].filter((key) => !generatedKeys.has(key)).sort(compareText);
+  const unexpected = [...generatedKeys].filter((key) => !expectedKeys.has(key)).sort(compareText);
+
+  console.error(`THIRD_PARTY_NOTICES.md is missing or stale. expected=${sha256(normalize(expected))} generated=${sha256(normalize(generated))}`);
+  if (missing.length || unexpected.length) {
+    console.error(`Inventory difference: missing=[${missing.join(', ')}] unexpected=[${unexpected.join(', ')}]`);
+  }
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const generated = render();
   if (checkOnly) {
-    if (!fs.existsSync(outputPath) || normalize(fs.readFileSync(outputPath, 'utf8')) !== normalize(generated)) {
-      console.error('THIRD_PARTY_NOTICES.md is missing or stale. Run pnpm notices:generate.');
+    const expected = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : '';
+    if (!expected || normalize(expected) !== normalize(generated)) {
+      reportMismatch(expected, generated);
+      console.error('Run pnpm notices:generate on the Windows packaging host.');
       process.exit(1);
     }
     console.log('THIRD_PARTY_NOTICES.md matches the locked Windows runtime dependency graphs.');
