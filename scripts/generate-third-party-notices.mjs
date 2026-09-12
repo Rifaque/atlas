@@ -92,7 +92,10 @@ function render() {
   const packages = [...javascriptPackages(), ...rustPackages()]
     .sort((a, b) => compareText(a.ecosystem, b.ecosystem)
       || compareText(a.name, b.name)
-      || compareText(a.version, b.version));
+      || compareText(a.version, b.version)
+      || compareText(a.license, b.license)
+      || compareText(a.authors, b.authors)
+      || compareText(a.homepage, b.homepage));
   const missingMetadata = packages.filter((pkg) => pkg.license === 'UNDECLARED');
   if (missingMetadata.length) {
     throw new Error(`Dependencies without license metadata: ${missingMetadata.map((pkg) => `${pkg.name}@${pkg.version}`).join(', ')}`);
@@ -115,6 +118,8 @@ function render() {
 
   const byLicense = new Map();
   for (const pkg of packages) byLicense.set(pkg.license, (byLicense.get(pkg.license) ?? 0) + 1);
+  withoutLocalText.sort(compareText);
+  for (const item of texts.values()) item.components.sort(compareText);
   const lines = [
     '# Atlas 1.0 Third-Party Notices',
     '',
@@ -149,7 +154,8 @@ function render() {
   ];
 
   let index = 0;
-  for (const item of [...texts.values()].sort((a, b) => compareText(a.components[0], b.components[0]))) {
+  for (const item of [...texts.values()].sort((a, b) => compareText(a.components.join('\u0000'), b.components.join('\u0000'))
+    || compareText(sha256(a.content), sha256(b.content)))) {
     index += 1;
     lines.push(
       `<details><summary>License text ${index}: ${escapeCell(item.components.slice(0, 3).join(', '))}${item.components.length > 3 ? ` and ${item.components.length - 3} more` : ''}</summary>`,

@@ -758,7 +758,6 @@ The following components declare an SPDX license in their package metadata but d
 
 - Rust: adobe-cmap-parser@0.4.1 (MIT)
 - Rust: alloc-stdlib@0.2.2 (BSD-3-Clause)
-- Rust: arrow@53.4.1 (Apache-2.0)
 - Rust: arrow-arith@53.4.1 (Apache-2.0)
 - Rust: arrow-array@53.4.1 (Apache-2.0)
 - Rust: arrow-buffer@53.4.1 (Apache-2.0)
@@ -772,18 +771,18 @@ The following components declare an SPDX license in their package metadata but d
 - Rust: arrow-schema@53.4.1 (Apache-2.0)
 - Rust: arrow-select@53.4.1 (Apache-2.0)
 - Rust: arrow-string@53.4.1 (Apache-2.0)
+- Rust: arrow@53.4.1 (Apache-2.0)
 - Rust: base64-simd@0.8.0 (MIT)
 - Rust: convert_case@0.4.0 (MIT)
-- Rust: datafusion@44.0.0 (Apache-2.0)
 - Rust: datafusion-doc@44.0.0 (Apache-2.0)
 - Rust: datafusion-functions-table@44.0.0 (Apache-2.0)
 - Rust: datafusion-macros@44.0.0 (Apache-2.0)
+- Rust: datafusion@44.0.0 (Apache-2.0)
 - Rust: deepsize_derive@0.1.2 (MIT)
 - Rust: flatbuffers@24.12.23 (Apache-2.0)
 - Rust: fsst@0.22.0 (Apache-2.0)
 - Rust: fxhash@0.2.1 (Apache-2.0/MIT)
 - Rust: htmlescape@0.3.1 (Apache-2.0 / MIT / MPL-2.0)
-- Rust: lance@0.22.0 (Apache-2.0)
 - Rust: lance-arrow@0.22.0 (Apache-2.0)
 - Rust: lance-core@0.22.0 (Apache-2.0)
 - Rust: lance-datafusion@0.22.0 (Apache-2.0)
@@ -794,6 +793,7 @@ The following components declare an SPDX license in their package metadata but d
 - Rust: lance-linalg@0.22.0 (Apache-2.0)
 - Rust: lance-table@0.22.0 (Apache-2.0)
 - Rust: lance-testing@0.22.0 (Apache-2.0)
+- Rust: lance@0.22.0 (Apache-2.0)
 - Rust: lancedb@0.15.0 (Apache-2.0)
 - Rust: mac@0.1.1 (MIT/Apache-2.0)
 - Rust: match_token@0.1.0 (MIT OR Apache-2.0)
@@ -815,11 +815,11 @@ The following components declare an SPDX license in their package metadata but d
 - Rust: tantivy-sstable@0.3.0 (MIT)
 - Rust: tantivy-stacker@0.3.0 (MIT)
 - Rust: tantivy-tokenizer-api@0.3.0 (MIT)
-- Rust: tree-sitter@0.23.2 (MIT)
 - Rust: tree-sitter-javascript@0.23.1 (MIT)
 - Rust: tree-sitter-python@0.23.6 (MIT)
 - Rust: tree-sitter-rust@0.23.3 (MIT)
 - Rust: tree-sitter-typescript@0.23.2 (MIT)
+- Rust: tree-sitter@0.23.2 (MIT)
 - Rust: type1-encoding-parser@0.1.0 (MIT)
 - Rust: unic-char-property@0.9.0 (MIT/Apache-2.0)
 - Rust: unic-char-range@0.9.0 (MIT/Apache-2.0)
@@ -827,9 +827,9 @@ The following components declare an SPDX license in their package metadata but d
 - Rust: unic-ucd-ident@0.9.0 (MIT/Apache-2.0)
 - Rust: unic-ucd-version@0.9.0 (MIT/Apache-2.0)
 - Rust: vsimd@0.8.0 (MIT)
-- Rust: webview2-com@0.38.2 (MIT)
 - Rust: webview2-com-macros@0.8.1 (MIT)
 - Rust: webview2-com-sys@0.38.2 (MIT)
+- Rust: webview2-com@0.38.2 (MIT)
 
 ## License and notice texts
 
@@ -867,7 +867,7 @@ SOFTWARE.
 
 <details><summary>License text 2: @tauri-apps/api@2.10.1 (LICENSE_APACHE-2.0), fdeflate@0.3.7 (LICENSE-APACHE), miniz_oxide@0.8.9 (LICENSE-APACHE.md) and 20 more</summary>
 
-Components: `@tauri-apps/api@2.10.1 (LICENSE_APACHE-2.0)`, `fdeflate@0.3.7 (LICENSE-APACHE)`, `miniz_oxide@0.8.9 (LICENSE-APACHE.md)`, `pin-project@1.1.11 (LICENSE-APACHE)`, `pin-project-internal@1.1.11 (LICENSE-APACHE)`, `pin-project-lite@0.2.16 (LICENSE-APACHE)`, `portable-atomic@1.13.1 (LICENSE-APACHE)`, `raw-window-handle@0.6.2 (LICENSE-APACHE.md)`, `sync_wrapper@1.0.2 (LICENSE)`, `tauri@2.10.2 (LICENSE_APACHE-2.0)`, `tauri-codegen@2.5.4 (LICENSE_APACHE-2.0)`, `tauri-macros@2.5.4 (LICENSE_APACHE-2.0)`, `tauri-plugin-dialog@2.6.0 (LICENSE_APACHE-2.0)`, `tauri-plugin-fs@2.4.5 (LICENSE_APACHE-2.0)`, `tauri-plugin-log@2.8.0 (LICENSE_APACHE-2.0)`, `tauri-runtime@2.10.0 (LICENSE_APACHE-2.0)`, `tauri-runtime-wry@2.10.0 (LICENSE_APACHE-2.0)`, `tauri-utils@2.8.2 (LICENSE_APACHE-2.0)`, `time@0.3.47 (LICENSE-Apache)`, `time-core@0.1.8 (LICENSE-Apache)`, `time-macros@0.2.27 (LICENSE-Apache)`, `zstd-safe@7.2.4 (LICENSE.Apache-2.0)`, `zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.Apache-2.0)`
+Components: `@tauri-apps/api@2.10.1 (LICENSE_APACHE-2.0)`, `fdeflate@0.3.7 (LICENSE-APACHE)`, `miniz_oxide@0.8.9 (LICENSE-APACHE.md)`, `pin-project-internal@1.1.11 (LICENSE-APACHE)`, `pin-project-lite@0.2.16 (LICENSE-APACHE)`, `pin-project@1.1.11 (LICENSE-APACHE)`, `portable-atomic@1.13.1 (LICENSE-APACHE)`, `raw-window-handle@0.6.2 (LICENSE-APACHE.md)`, `sync_wrapper@1.0.2 (LICENSE)`, `tauri-codegen@2.5.4 (LICENSE_APACHE-2.0)`, `tauri-macros@2.5.4 (LICENSE_APACHE-2.0)`, `tauri-plugin-dialog@2.6.0 (LICENSE_APACHE-2.0)`, `tauri-plugin-fs@2.4.5 (LICENSE_APACHE-2.0)`, `tauri-plugin-log@2.8.0 (LICENSE_APACHE-2.0)`, `tauri-runtime-wry@2.10.0 (LICENSE_APACHE-2.0)`, `tauri-runtime@2.10.0 (LICENSE_APACHE-2.0)`, `tauri-utils@2.8.2 (LICENSE_APACHE-2.0)`, `tauri@2.10.2 (LICENSE_APACHE-2.0)`, `time-core@0.1.8 (LICENSE-Apache)`, `time-macros@0.2.27 (LICENSE-Apache)`, `time@0.3.47 (LICENSE-Apache)`, `zstd-safe@7.2.4 (LICENSE.Apache-2.0)`, `zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.Apache-2.0)`
 
 <pre>
 Apache License
@@ -1050,9 +1050,9 @@ Apache License
 
 </details>
 
-<details><summary>License text 3: @tauri-apps/api@2.10.1 (LICENSE_MIT), tauri@2.10.2 (LICENSE_MIT), tauri-codegen@2.5.4 (LICENSE_MIT) and 7 more</summary>
+<details><summary>License text 3: @tauri-apps/api@2.10.1 (LICENSE_MIT), tauri-codegen@2.5.4 (LICENSE_MIT), tauri-macros@2.5.4 (LICENSE_MIT) and 7 more</summary>
 
-Components: `@tauri-apps/api@2.10.1 (LICENSE_MIT)`, `tauri@2.10.2 (LICENSE_MIT)`, `tauri-codegen@2.5.4 (LICENSE_MIT)`, `tauri-macros@2.5.4 (LICENSE_MIT)`, `tauri-plugin-dialog@2.6.0 (LICENSE_MIT)`, `tauri-plugin-fs@2.4.5 (LICENSE_MIT)`, `tauri-plugin-log@2.8.0 (LICENSE_MIT)`, `tauri-runtime@2.10.0 (LICENSE_MIT)`, `tauri-runtime-wry@2.10.0 (LICENSE_MIT)`, `tauri-utils@2.8.2 (LICENSE_MIT)`
+Components: `@tauri-apps/api@2.10.1 (LICENSE_MIT)`, `tauri-codegen@2.5.4 (LICENSE_MIT)`, `tauri-macros@2.5.4 (LICENSE_MIT)`, `tauri-plugin-dialog@2.6.0 (LICENSE_MIT)`, `tauri-plugin-fs@2.4.5 (LICENSE_MIT)`, `tauri-plugin-log@2.8.0 (LICENSE_MIT)`, `tauri-runtime-wry@2.10.0 (LICENSE_MIT)`, `tauri-runtime@2.10.0 (LICENSE_MIT)`, `tauri-utils@2.8.2 (LICENSE_MIT)`, `tauri@2.10.2 (LICENSE_MIT)`
 
 <pre>
 MIT License
@@ -1337,7 +1337,7 @@ limitations under the License.
 
 <details><summary>License text 7: adler2@2.0.1 (LICENSE-MIT), allocator-api2@0.2.21 (LICENSE-MIT), anyhow@1.0.102 (LICENSE-MIT) and 67 more</summary>
 
-Components: `adler2@2.0.1 (LICENSE-MIT)`, `allocator-api2@0.2.21 (LICENSE-MIT)`, `anyhow@1.0.102 (LICENSE-MIT)`, `async-io@1.13.0 (LICENSE-MIT)`, `async-lock@2.8.0 (LICENSE-MIT)`, `async-lock@3.4.2 (LICENSE-MIT)`, `async-priority-channel@0.2.0 (LICENSE-MIT)`, `async-recursion@1.1.1 (LICENSE-MIT)`, `async-trait@0.1.89 (LICENSE-MIT)`, `atomic-waker@1.1.2 (LICENSE-MIT)`, `camino@1.2.2 (LICENSE-MIT)`, `cargo-platform@0.1.9 (LICENSE-MIT)`, `cargo_metadata@0.19.2 (LICENSE-MIT)`, `concurrent-queue@2.5.0 (LICENSE-MIT)`, `displaydoc@0.2.5 (LICENSE-MIT)`, `dtoa@1.0.11 (LICENSE-MIT)`, `dyn-clone@1.0.20 (LICENSE-MIT)`, `erased-serde@0.4.9 (LICENSE-MIT)`, `event-listener@2.5.3 (LICENSE-MIT)`, `event-listener@4.0.3 (LICENSE-MIT)`, `event-listener@5.4.1 (LICENSE-MIT)`, `event-listener-strategy@0.5.4 (LICENSE-MIT)`, `fastrand@1.9.0 (LICENSE-MIT)`, `fastrand@2.3.0 (LICENSE-MIT)`, `futures-lite@1.13.0 (LICENSE-MIT)`, `io-lifetimes@1.0.11 (LICENSE-MIT)`, `itoa@1.0.17 (LICENSE-MIT)`, `kuchikiki@0.8.8-speedreader (LICENSE)`, `lexical-core@1.0.6 (LICENSE-MIT)`, `lexical-parse-float@1.0.6 (LICENSE-MIT)`, `lexical-parse-integer@1.0.6 (LICENSE-MIT)`, `lexical-util@1.0.7 (LICENSE-MIT)`, `lexical-write-float@1.0.6 (LICENSE-MIT)`, `lexical-write-integer@1.0.6 (LICENSE-MIT)`, `minimal-lexical@0.2.1 (LICENSE-MIT)`, `once_cell@1.21.3 (LICENSE-MIT)`, `oneshot@0.1.13 (LICENSE-MIT)`, `parking@2.2.1 (LICENSE-MIT)`, `paste@1.0.15 (LICENSE-MIT)`, `pin-project@1.1.11 (LICENSE-MIT)`, `pin-project-internal@1.1.11 (LICENSE-MIT)`, `pin-project-lite@0.2.16 (LICENSE-MIT)`, `polling@2.8.0 (LICENSE-MIT)`, `portable-atomic@1.13.1 (LICENSE-MIT)`, `proc-macro2@1.0.106 (LICENSE-MIT)`, `quote@1.0.44 (LICENSE-MIT)`, `rustc-hash@1.1.0 (LICENSE-MIT)`, `rustix@0.37.28 (LICENSE-MIT)`, `rustversion@1.0.22 (LICENSE-MIT)`, `semver@1.0.27 (LICENSE-MIT)`, `seq-macro@0.3.6 (LICENSE-MIT)`, `serde@1.0.228 (LICENSE-MIT)`, `serde-untagged@0.1.9 (LICENSE-MIT)`, `serde_core@1.0.228 (LICENSE-MIT)`, `serde_derive@1.0.228 (LICENSE-MIT)`, `serde_derive_internals@0.29.1 (LICENSE-MIT)`, `serde_json@1.0.149 (LICENSE-MIT)`, `serde_repr@0.1.20 (LICENSE-MIT)`, `servo_arc@0.2.0 (LICENSE-MIT)`, `syn@1.0.109 (LICENSE-MIT)`, `syn@2.0.117 (LICENSE-MIT)`, `thiserror@1.0.69 (LICENSE-MIT)`, `thiserror@2.0.18 (LICENSE-MIT)`, `thiserror-impl@1.0.69 (LICENSE-MIT)`, `thiserror-impl@2.0.18 (LICENSE-MIT)`, `typeid@1.0.3 (LICENSE-MIT)`, `unicode-ident@1.0.24 (LICENSE-MIT)`, `utf-8@0.7.6 (LICENSE-MIT)`, `waker-fn@1.2.0 (LICENSE-MIT)`, `zmij@1.0.21 (LICENSE-MIT)`
+Components: `adler2@2.0.1 (LICENSE-MIT)`, `allocator-api2@0.2.21 (LICENSE-MIT)`, `anyhow@1.0.102 (LICENSE-MIT)`, `async-io@1.13.0 (LICENSE-MIT)`, `async-lock@2.8.0 (LICENSE-MIT)`, `async-lock@3.4.2 (LICENSE-MIT)`, `async-priority-channel@0.2.0 (LICENSE-MIT)`, `async-recursion@1.1.1 (LICENSE-MIT)`, `async-trait@0.1.89 (LICENSE-MIT)`, `atomic-waker@1.1.2 (LICENSE-MIT)`, `camino@1.2.2 (LICENSE-MIT)`, `cargo-platform@0.1.9 (LICENSE-MIT)`, `cargo_metadata@0.19.2 (LICENSE-MIT)`, `concurrent-queue@2.5.0 (LICENSE-MIT)`, `displaydoc@0.2.5 (LICENSE-MIT)`, `dtoa@1.0.11 (LICENSE-MIT)`, `dyn-clone@1.0.20 (LICENSE-MIT)`, `erased-serde@0.4.9 (LICENSE-MIT)`, `event-listener-strategy@0.5.4 (LICENSE-MIT)`, `event-listener@2.5.3 (LICENSE-MIT)`, `event-listener@4.0.3 (LICENSE-MIT)`, `event-listener@5.4.1 (LICENSE-MIT)`, `fastrand@1.9.0 (LICENSE-MIT)`, `fastrand@2.3.0 (LICENSE-MIT)`, `futures-lite@1.13.0 (LICENSE-MIT)`, `io-lifetimes@1.0.11 (LICENSE-MIT)`, `itoa@1.0.17 (LICENSE-MIT)`, `kuchikiki@0.8.8-speedreader (LICENSE)`, `lexical-core@1.0.6 (LICENSE-MIT)`, `lexical-parse-float@1.0.6 (LICENSE-MIT)`, `lexical-parse-integer@1.0.6 (LICENSE-MIT)`, `lexical-util@1.0.7 (LICENSE-MIT)`, `lexical-write-float@1.0.6 (LICENSE-MIT)`, `lexical-write-integer@1.0.6 (LICENSE-MIT)`, `minimal-lexical@0.2.1 (LICENSE-MIT)`, `once_cell@1.21.3 (LICENSE-MIT)`, `oneshot@0.1.13 (LICENSE-MIT)`, `parking@2.2.1 (LICENSE-MIT)`, `paste@1.0.15 (LICENSE-MIT)`, `pin-project-internal@1.1.11 (LICENSE-MIT)`, `pin-project-lite@0.2.16 (LICENSE-MIT)`, `pin-project@1.1.11 (LICENSE-MIT)`, `polling@2.8.0 (LICENSE-MIT)`, `portable-atomic@1.13.1 (LICENSE-MIT)`, `proc-macro2@1.0.106 (LICENSE-MIT)`, `quote@1.0.44 (LICENSE-MIT)`, `rustc-hash@1.1.0 (LICENSE-MIT)`, `rustix@0.37.28 (LICENSE-MIT)`, `rustversion@1.0.22 (LICENSE-MIT)`, `semver@1.0.27 (LICENSE-MIT)`, `seq-macro@0.3.6 (LICENSE-MIT)`, `serde-untagged@0.1.9 (LICENSE-MIT)`, `serde@1.0.228 (LICENSE-MIT)`, `serde_core@1.0.228 (LICENSE-MIT)`, `serde_derive@1.0.228 (LICENSE-MIT)`, `serde_derive_internals@0.29.1 (LICENSE-MIT)`, `serde_json@1.0.149 (LICENSE-MIT)`, `serde_repr@0.1.20 (LICENSE-MIT)`, `servo_arc@0.2.0 (LICENSE-MIT)`, `syn@1.0.109 (LICENSE-MIT)`, `syn@2.0.117 (LICENSE-MIT)`, `thiserror-impl@1.0.69 (LICENSE-MIT)`, `thiserror-impl@2.0.18 (LICENSE-MIT)`, `thiserror@1.0.69 (LICENSE-MIT)`, `thiserror@2.0.18 (LICENSE-MIT)`, `typeid@1.0.3 (LICENSE-MIT)`, `unicode-ident@1.0.24 (LICENSE-MIT)`, `utf-8@0.7.6 (LICENSE-MIT)`, `waker-fn@1.2.0 (LICENSE-MIT)`, `zmij@1.0.21 (LICENSE-MIT)`
 
 <pre>
 Permission is hereby granted, free of charge, to any
@@ -1613,7 +1613,7 @@ DEALINGS IN THE SOFTWARE.
 
 <details><summary>License text 10: ahash@0.8.12 (LICENSE-APACHE), arc-swap@1.8.2 (LICENSE-APACHE), arrayvec@0.7.6 (LICENSE-APACHE) and 134 more</summary>
 
-Components: `ahash@0.8.12 (LICENSE-APACHE)`, `arc-swap@1.8.2 (LICENSE-APACHE)`, `arrayvec@0.7.6 (LICENSE-APACHE)`, `async-io@1.13.0 (LICENSE-APACHE)`, `async-lock@2.8.0 (LICENSE-APACHE)`, `async-lock@3.4.2 (LICENSE-APACHE)`, `async-priority-channel@0.2.0 (LICENSE-APACHE)`, `async-recursion@1.1.1 (LICENSE-APACHE)`, `atomic-waker@1.1.2 (LICENSE-APACHE)`, `base64@0.22.1 (LICENSE-APACHE)`, `bitflags@1.3.2 (LICENSE-APACHE)`, `bitflags@2.11.0 (LICENSE-APACHE)`, `bstr@1.12.1 (LICENSE-APACHE)`, `bytes-utils@0.1.4 (LICENSE-APACHE)`, `camino@1.2.2 (LICENSE-APACHE)`, `cff-parser@0.1.0 (LICENSE-APACHE)`, `cfg-if@1.0.4 (LICENSE-APACHE)`, `concurrent-queue@2.5.0 (LICENSE-APACHE)`, `crossbeam-channel@0.5.15 (LICENSE-APACHE)`, `crossbeam-deque@0.8.6 (LICENSE-APACHE)`, `crossbeam-epoch@0.9.18 (LICENSE-APACHE)`, `crossbeam-queue@0.3.12 (LICENSE-APACHE)`, `crossbeam-utils@0.8.21 (LICENSE-APACHE)`, `displaydoc@0.2.5 (LICENSE-APACHE)`, `either@1.15.0 (LICENSE-APACHE)`, `equivalent@1.0.2 (LICENSE-APACHE)`, `errno@0.3.14 (LICENSE-APACHE)`, `euclid@0.20.14 (LICENSE-APACHE)`, `event-listener@2.5.3 (LICENSE-APACHE)`, `event-listener@4.0.3 (LICENSE-APACHE)`, `event-listener@5.4.1 (LICENSE-APACHE)`, `event-listener-strategy@0.5.4 (LICENSE-APACHE)`, `fastrand@1.9.0 (LICENSE-APACHE)`, `fastrand@2.3.0 (LICENSE-APACHE)`, `filetime@0.2.27 (LICENSE-APACHE)`, `fixedbitset@0.4.2 (LICENSE-APACHE)`, `flate2@1.1.9 (LICENSE-APACHE)`, `fnv@1.0.7 (LICENSE-APACHE)`, `form_urlencoded@1.2.2 (LICENSE-APACHE)`, `fs4@0.8.4 (LICENSE-APACHE)`, `futf@0.1.5 (LICENSE-APACHE)`, `futures-lite@1.13.0 (LICENSE-APACHE)`, `git2@0.19.0 (LICENSE-APACHE)`, `glob@0.3.3 (LICENSE-APACHE)`, `hashbrown@0.12.3 (LICENSE-APACHE)`, `hashbrown@0.14.5 (LICENSE-APACHE)`, `hashbrown@0.15.5 (LICENSE-APACHE)`, `hashbrown@0.16.1 (LICENSE-APACHE)`, `heck@0.4.1 (LICENSE-APACHE)`, `heck@0.5.0 (LICENSE-APACHE)`, `html5ever@0.29.1 (LICENSE-APACHE)`, `httparse@1.10.1 (LICENSE-APACHE)`, `hyper-rustls@0.24.2 (LICENSE-APACHE)`, `hyper-rustls@0.27.7 (LICENSE-APACHE)`, `hyper-tls@0.6.0 (LICENSE-APACHE)`, `idna@1.1.0 (LICENSE-APACHE)`, `idna_adapter@1.2.1 (LICENSE-APACHE)`, `indexmap@1.9.3 (LICENSE-APACHE)`, `indexmap@2.13.0 (LICENSE-APACHE)`, `io-lifetimes@1.0.11 (LICENSE-APACHE)`, `itertools@0.12.1 (LICENSE-APACHE)`, `itertools@0.13.0 (LICENSE-APACHE)`, `itertools@0.14.0 (LICENSE-APACHE)`, `keyboard-types@0.7.0 (LICENSE-APACHE)`, `lazy_static@1.5.0 (LICENSE-APACHE)`, `libgit2-sys@0.17.0+1.8.1 (LICENSE-APACHE)`, `libz-sys@1.1.24 (LICENSE-APACHE)`, `lock_api@0.4.14 (LICENSE-APACHE)`, `log@0.4.29 (LICENSE-APACHE)`, `markup5ever@0.14.1 (LICENSE-APACHE)`, `mime@0.3.17 (LICENSE-APACHE)`, `muda@0.17.1 (LICENSE-APACHE)`, `nodrop@0.1.14 (LICENSE-APACHE)`, `num@0.4.3 (LICENSE-APACHE)`, `num-bigint@0.4.6 (LICENSE-APACHE)`, `num-complex@0.4.6 (LICENSE-APACHE)`, `num-integer@0.1.46 (LICENSE-APACHE)`, `num-iter@0.1.45 (LICENSE-APACHE)`, `num-rational@0.4.2 (LICENSE-APACHE)`, `num-traits@0.2.19 (LICENSE-APACHE)`, `num_cpus@1.17.0 (LICENSE-APACHE)`, `once_cell@1.21.3 (LICENSE-APACHE)`, `parking@2.2.1 (LICENSE-APACHE)`, `parking_lot@0.12.5 (LICENSE-APACHE)`, `parking_lot_core@0.9.12 (LICENSE-APACHE)`, `percent-encoding@2.3.2 (LICENSE-APACHE)`, `petgraph@0.6.5 (LICENSE-APACHE)`, `png@0.17.16 (LICENSE-APACHE)`, `polling@2.8.0 (LICENSE-APACHE)`, `proc-macro-hack@0.5.20+deprecated (LICENSE-APACHE)`, `prost@0.13.5 (LICENSE)`, `prost-derive@0.13.5 (LICENSE)`, `prost-types@0.13.5 (LICENSE)`, `rayon@1.11.0 (LICENSE-APACHE)`, `rayon-core@1.13.0 (LICENSE-APACHE)`, `regex@1.12.3 (LICENSE-APACHE)`, `regex-automata@0.4.14 (LICENSE-APACHE)`, `regex-lite@0.1.9 (LICENSE-APACHE)`, `regex-syntax@0.8.9 (LICENSE-APACHE)`, `rustc-hash@1.1.0 (LICENSE-APACHE)`, `rustix@0.37.28 (LICENSE-APACHE)`, `rustls@0.21.12 (LICENSE-APACHE)`, `rustls@0.23.37 (LICENSE-APACHE)`, `rustls-native-certs@0.8.3 (LICENSE-APACHE)`, `rustls-pemfile@2.2.0 (LICENSE-APACHE)`, `scopeguard@1.2.0 (LICENSE-APACHE)`, `sct@0.7.1 (LICENSE-APACHE)`, `serde_with@3.16.1 (LICENSE-APACHE)`, `serde_with_macros@3.16.1 (LICENSE-APACHE)`, `servo_arc@0.2.0 (LICENSE-APACHE)`, `shellexpand@3.1.2 (LICENSE-APACHE)`, `smallvec@1.15.1 (LICENSE-APACHE)`, `socket2@0.4.10 (LICENSE-APACHE)`, `socket2@0.5.10 (LICENSE-APACHE)`, `socket2@0.6.2 (LICENSE-APACHE)`, `sqlparser@0.53.0 (LICENSE.TXT)`, `sqlparser_derive@0.3.0 (LICENSE.TXT)`, `stable_deref_trait@1.2.1 (LICENSE-APACHE)`, `string_cache@0.8.9 (LICENSE-APACHE)`, `syn@1.0.109 (LICENSE-APACHE)`, `tempfile@3.25.0 (LICENSE-APACHE)`, `tendril@0.4.3 (LICENSE-APACHE)`, `tray-icon@0.21.3 (LICENSE-APACHE)`, `ttf-parser@0.25.1 (LICENSE-APACHE)`, `unicode-bidi@0.3.18 (LICENSE-APACHE)`, `unicode-normalization@0.1.25 (LICENSE-APACHE)`, `unicode-properties@0.1.4 (LICENSE-APACHE)`, `unicode-segmentation@1.12.0 (LICENSE-APACHE)`, `unicode-width@0.2.2 (LICENSE-APACHE)`, `url@2.5.8 (LICENSE-APACHE)`, `uuid@1.21.0 (LICENSE-APACHE)`, `value-bag@1.12.0 (LICENSE-APACHE)`, `waker-fn@1.2.0 (LICENSE-APACHE)`, `weezl@0.1.12 (LICENSE-APACHE)`, `window-vibrancy@0.6.0 (LICENSE-APACHE)`, `wry@0.54.2 (LICENSE-APACHE)`, `xmlparser@0.13.6 (LICENSE-APACHE)`
+Components: `ahash@0.8.12 (LICENSE-APACHE)`, `arc-swap@1.8.2 (LICENSE-APACHE)`, `arrayvec@0.7.6 (LICENSE-APACHE)`, `async-io@1.13.0 (LICENSE-APACHE)`, `async-lock@2.8.0 (LICENSE-APACHE)`, `async-lock@3.4.2 (LICENSE-APACHE)`, `async-priority-channel@0.2.0 (LICENSE-APACHE)`, `async-recursion@1.1.1 (LICENSE-APACHE)`, `atomic-waker@1.1.2 (LICENSE-APACHE)`, `base64@0.22.1 (LICENSE-APACHE)`, `bitflags@1.3.2 (LICENSE-APACHE)`, `bitflags@2.11.0 (LICENSE-APACHE)`, `bstr@1.12.1 (LICENSE-APACHE)`, `bytes-utils@0.1.4 (LICENSE-APACHE)`, `camino@1.2.2 (LICENSE-APACHE)`, `cff-parser@0.1.0 (LICENSE-APACHE)`, `cfg-if@1.0.4 (LICENSE-APACHE)`, `concurrent-queue@2.5.0 (LICENSE-APACHE)`, `crossbeam-channel@0.5.15 (LICENSE-APACHE)`, `crossbeam-deque@0.8.6 (LICENSE-APACHE)`, `crossbeam-epoch@0.9.18 (LICENSE-APACHE)`, `crossbeam-queue@0.3.12 (LICENSE-APACHE)`, `crossbeam-utils@0.8.21 (LICENSE-APACHE)`, `displaydoc@0.2.5 (LICENSE-APACHE)`, `either@1.15.0 (LICENSE-APACHE)`, `equivalent@1.0.2 (LICENSE-APACHE)`, `errno@0.3.14 (LICENSE-APACHE)`, `euclid@0.20.14 (LICENSE-APACHE)`, `event-listener-strategy@0.5.4 (LICENSE-APACHE)`, `event-listener@2.5.3 (LICENSE-APACHE)`, `event-listener@4.0.3 (LICENSE-APACHE)`, `event-listener@5.4.1 (LICENSE-APACHE)`, `fastrand@1.9.0 (LICENSE-APACHE)`, `fastrand@2.3.0 (LICENSE-APACHE)`, `filetime@0.2.27 (LICENSE-APACHE)`, `fixedbitset@0.4.2 (LICENSE-APACHE)`, `flate2@1.1.9 (LICENSE-APACHE)`, `fnv@1.0.7 (LICENSE-APACHE)`, `form_urlencoded@1.2.2 (LICENSE-APACHE)`, `fs4@0.8.4 (LICENSE-APACHE)`, `futf@0.1.5 (LICENSE-APACHE)`, `futures-lite@1.13.0 (LICENSE-APACHE)`, `git2@0.19.0 (LICENSE-APACHE)`, `glob@0.3.3 (LICENSE-APACHE)`, `hashbrown@0.12.3 (LICENSE-APACHE)`, `hashbrown@0.14.5 (LICENSE-APACHE)`, `hashbrown@0.15.5 (LICENSE-APACHE)`, `hashbrown@0.16.1 (LICENSE-APACHE)`, `heck@0.4.1 (LICENSE-APACHE)`, `heck@0.5.0 (LICENSE-APACHE)`, `html5ever@0.29.1 (LICENSE-APACHE)`, `httparse@1.10.1 (LICENSE-APACHE)`, `hyper-rustls@0.24.2 (LICENSE-APACHE)`, `hyper-rustls@0.27.7 (LICENSE-APACHE)`, `hyper-tls@0.6.0 (LICENSE-APACHE)`, `idna@1.1.0 (LICENSE-APACHE)`, `idna_adapter@1.2.1 (LICENSE-APACHE)`, `indexmap@1.9.3 (LICENSE-APACHE)`, `indexmap@2.13.0 (LICENSE-APACHE)`, `io-lifetimes@1.0.11 (LICENSE-APACHE)`, `itertools@0.12.1 (LICENSE-APACHE)`, `itertools@0.13.0 (LICENSE-APACHE)`, `itertools@0.14.0 (LICENSE-APACHE)`, `keyboard-types@0.7.0 (LICENSE-APACHE)`, `lazy_static@1.5.0 (LICENSE-APACHE)`, `libgit2-sys@0.17.0+1.8.1 (LICENSE-APACHE)`, `libz-sys@1.1.24 (LICENSE-APACHE)`, `lock_api@0.4.14 (LICENSE-APACHE)`, `log@0.4.29 (LICENSE-APACHE)`, `markup5ever@0.14.1 (LICENSE-APACHE)`, `mime@0.3.17 (LICENSE-APACHE)`, `muda@0.17.1 (LICENSE-APACHE)`, `nodrop@0.1.14 (LICENSE-APACHE)`, `num-bigint@0.4.6 (LICENSE-APACHE)`, `num-complex@0.4.6 (LICENSE-APACHE)`, `num-integer@0.1.46 (LICENSE-APACHE)`, `num-iter@0.1.45 (LICENSE-APACHE)`, `num-rational@0.4.2 (LICENSE-APACHE)`, `num-traits@0.2.19 (LICENSE-APACHE)`, `num@0.4.3 (LICENSE-APACHE)`, `num_cpus@1.17.0 (LICENSE-APACHE)`, `once_cell@1.21.3 (LICENSE-APACHE)`, `parking@2.2.1 (LICENSE-APACHE)`, `parking_lot@0.12.5 (LICENSE-APACHE)`, `parking_lot_core@0.9.12 (LICENSE-APACHE)`, `percent-encoding@2.3.2 (LICENSE-APACHE)`, `petgraph@0.6.5 (LICENSE-APACHE)`, `png@0.17.16 (LICENSE-APACHE)`, `polling@2.8.0 (LICENSE-APACHE)`, `proc-macro-hack@0.5.20+deprecated (LICENSE-APACHE)`, `prost-derive@0.13.5 (LICENSE)`, `prost-types@0.13.5 (LICENSE)`, `prost@0.13.5 (LICENSE)`, `rayon-core@1.13.0 (LICENSE-APACHE)`, `rayon@1.11.0 (LICENSE-APACHE)`, `regex-automata@0.4.14 (LICENSE-APACHE)`, `regex-lite@0.1.9 (LICENSE-APACHE)`, `regex-syntax@0.8.9 (LICENSE-APACHE)`, `regex@1.12.3 (LICENSE-APACHE)`, `rustc-hash@1.1.0 (LICENSE-APACHE)`, `rustix@0.37.28 (LICENSE-APACHE)`, `rustls-native-certs@0.8.3 (LICENSE-APACHE)`, `rustls-pemfile@2.2.0 (LICENSE-APACHE)`, `rustls@0.21.12 (LICENSE-APACHE)`, `rustls@0.23.37 (LICENSE-APACHE)`, `scopeguard@1.2.0 (LICENSE-APACHE)`, `sct@0.7.1 (LICENSE-APACHE)`, `serde_with@3.16.1 (LICENSE-APACHE)`, `serde_with_macros@3.16.1 (LICENSE-APACHE)`, `servo_arc@0.2.0 (LICENSE-APACHE)`, `shellexpand@3.1.2 (LICENSE-APACHE)`, `smallvec@1.15.1 (LICENSE-APACHE)`, `socket2@0.4.10 (LICENSE-APACHE)`, `socket2@0.5.10 (LICENSE-APACHE)`, `socket2@0.6.2 (LICENSE-APACHE)`, `sqlparser@0.53.0 (LICENSE.TXT)`, `sqlparser_derive@0.3.0 (LICENSE.TXT)`, `stable_deref_trait@1.2.1 (LICENSE-APACHE)`, `string_cache@0.8.9 (LICENSE-APACHE)`, `syn@1.0.109 (LICENSE-APACHE)`, `tempfile@3.25.0 (LICENSE-APACHE)`, `tendril@0.4.3 (LICENSE-APACHE)`, `tray-icon@0.21.3 (LICENSE-APACHE)`, `ttf-parser@0.25.1 (LICENSE-APACHE)`, `unicode-bidi@0.3.18 (LICENSE-APACHE)`, `unicode-normalization@0.1.25 (LICENSE-APACHE)`, `unicode-properties@0.1.4 (LICENSE-APACHE)`, `unicode-segmentation@1.12.0 (LICENSE-APACHE)`, `unicode-width@0.2.2 (LICENSE-APACHE)`, `url@2.5.8 (LICENSE-APACHE)`, `uuid@1.21.0 (LICENSE-APACHE)`, `value-bag@1.12.0 (LICENSE-APACHE)`, `waker-fn@1.2.0 (LICENSE-APACHE)`, `weezl@0.1.12 (LICENSE-APACHE)`, `window-vibrancy@0.6.0 (LICENSE-APACHE)`, `wry@0.54.2 (LICENSE-APACHE)`, `xmlparser@0.13.6 (LICENSE-APACHE)`
 
 <pre>
 Apache License
@@ -1855,9 +1855,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 12: aho-corasick@1.1.4 (COPYING), byteorder@1.5.0 (COPYING), csv@1.4.0 (COPYING) and 9 more</summary>
+<details><summary>License text 12: aho-corasick@1.1.4 (COPYING), byteorder@1.5.0 (COPYING), csv-core@0.1.13 (COPYING) and 9 more</summary>
 
-Components: `aho-corasick@1.1.4 (COPYING)`, `byteorder@1.5.0 (COPYING)`, `csv@1.4.0 (COPYING)`, `csv-core@0.1.13 (COPYING)`, `globset@0.4.18 (COPYING)`, `ignore@0.4.25 (COPYING)`, `memchr@2.8.0 (COPYING)`, `same-file@1.0.6 (COPYING)`, `tantivy-fst@0.5.0 (COPYING)`, `utf8-ranges@1.0.5 (COPYING)`, `walkdir@2.5.0 (COPYING)`, `winapi-util@0.1.11 (COPYING)`
+Components: `aho-corasick@1.1.4 (COPYING)`, `byteorder@1.5.0 (COPYING)`, `csv-core@0.1.13 (COPYING)`, `csv@1.4.0 (COPYING)`, `globset@0.4.18 (COPYING)`, `ignore@0.4.25 (COPYING)`, `memchr@2.8.0 (COPYING)`, `same-file@1.0.6 (COPYING)`, `tantivy-fst@0.5.0 (COPYING)`, `utf8-ranges@1.0.5 (COPYING)`, `walkdir@2.5.0 (COPYING)`, `winapi-util@0.1.11 (COPYING)`
 
 <pre>
 This project is dual-licensed under the Unlicense and MIT licenses.
@@ -1867,9 +1867,9 @@ You may use this code under the terms of either license.
 
 </details>
 
-<details><summary>License text 13: aho-corasick@1.1.4 (LICENSE-MIT), byteorder@1.5.0 (LICENSE-MIT), csv@1.4.0 (LICENSE-MIT) and 6 more</summary>
+<details><summary>License text 13: aho-corasick@1.1.4 (LICENSE-MIT), byteorder@1.5.0 (LICENSE-MIT), csv-core@0.1.13 (LICENSE-MIT) and 6 more</summary>
 
-Components: `aho-corasick@1.1.4 (LICENSE-MIT)`, `byteorder@1.5.0 (LICENSE-MIT)`, `csv@1.4.0 (LICENSE-MIT)`, `csv-core@0.1.13 (LICENSE-MIT)`, `globset@0.4.18 (LICENSE-MIT)`, `ignore@0.4.25 (LICENSE-MIT)`, `memchr@2.8.0 (LICENSE-MIT)`, `utf8-ranges@1.0.5 (LICENSE-MIT)`, `walkdir@2.5.0 (LICENSE-MIT)`
+Components: `aho-corasick@1.1.4 (LICENSE-MIT)`, `byteorder@1.5.0 (LICENSE-MIT)`, `csv-core@0.1.13 (LICENSE-MIT)`, `csv@1.4.0 (LICENSE-MIT)`, `globset@0.4.18 (LICENSE-MIT)`, `ignore@0.4.25 (LICENSE-MIT)`, `memchr@2.8.0 (LICENSE-MIT)`, `utf8-ranges@1.0.5 (LICENSE-MIT)`, `walkdir@2.5.0 (LICENSE-MIT)`
 
 <pre>
 The MIT License (MIT)
@@ -1920,7 +1920,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 <details><summary>License text 15: allocator-api2@0.2.21 (LICENSE-APACHE), anyhow@1.0.102 (LICENSE-APACHE), async-trait@0.1.89 (LICENSE-APACHE) and 29 more</summary>
 
-Components: `allocator-api2@0.2.21 (LICENSE-APACHE)`, `anyhow@1.0.102 (LICENSE-APACHE)`, `async-trait@0.1.89 (LICENSE-APACHE)`, `dtoa@1.0.11 (LICENSE-APACHE)`, `dyn-clone@1.0.20 (LICENSE-APACHE)`, `erased-serde@0.4.9 (LICENSE-APACHE)`, `itoa@1.0.17 (LICENSE-APACHE)`, `libc@0.2.182 (LICENSE-APACHE)`, `oneshot@0.1.13 (LICENSE-APACHE)`, `paste@1.0.15 (LICENSE-APACHE)`, `proc-macro2@1.0.106 (LICENSE-APACHE)`, `quote@1.0.44 (LICENSE-APACHE)`, `rustversion@1.0.22 (LICENSE-APACHE)`, `ryu@1.0.23 (LICENSE-APACHE)`, `semver@1.0.27 (LICENSE-APACHE)`, `seq-macro@0.3.6 (LICENSE-APACHE)`, `serde@1.0.228 (LICENSE-APACHE)`, `serde-untagged@0.1.9 (LICENSE-APACHE)`, `serde_core@1.0.228 (LICENSE-APACHE)`, `serde_derive@1.0.228 (LICENSE-APACHE)`, `serde_derive_internals@0.29.1 (LICENSE-APACHE)`, `serde_json@1.0.149 (LICENSE-APACHE)`, `serde_repr@0.1.20 (LICENSE-APACHE)`, `serde_urlencoded@0.7.1 (LICENSE-APACHE)`, `syn@2.0.117 (LICENSE-APACHE)`, `thiserror@1.0.69 (LICENSE-APACHE)`, `thiserror@2.0.18 (LICENSE-APACHE)`, `thiserror-impl@1.0.69 (LICENSE-APACHE)`, `thiserror-impl@2.0.18 (LICENSE-APACHE)`, `typeid@1.0.3 (LICENSE-APACHE)`, `unicode-ident@1.0.24 (LICENSE-APACHE)`, `utf-8@0.7.6 (LICENSE-APACHE)`
+Components: `allocator-api2@0.2.21 (LICENSE-APACHE)`, `anyhow@1.0.102 (LICENSE-APACHE)`, `async-trait@0.1.89 (LICENSE-APACHE)`, `dtoa@1.0.11 (LICENSE-APACHE)`, `dyn-clone@1.0.20 (LICENSE-APACHE)`, `erased-serde@0.4.9 (LICENSE-APACHE)`, `itoa@1.0.17 (LICENSE-APACHE)`, `libc@0.2.182 (LICENSE-APACHE)`, `oneshot@0.1.13 (LICENSE-APACHE)`, `paste@1.0.15 (LICENSE-APACHE)`, `proc-macro2@1.0.106 (LICENSE-APACHE)`, `quote@1.0.44 (LICENSE-APACHE)`, `rustversion@1.0.22 (LICENSE-APACHE)`, `ryu@1.0.23 (LICENSE-APACHE)`, `semver@1.0.27 (LICENSE-APACHE)`, `seq-macro@0.3.6 (LICENSE-APACHE)`, `serde-untagged@0.1.9 (LICENSE-APACHE)`, `serde@1.0.228 (LICENSE-APACHE)`, `serde_core@1.0.228 (LICENSE-APACHE)`, `serde_derive@1.0.228 (LICENSE-APACHE)`, `serde_derive_internals@0.29.1 (LICENSE-APACHE)`, `serde_json@1.0.149 (LICENSE-APACHE)`, `serde_repr@0.1.20 (LICENSE-APACHE)`, `serde_urlencoded@0.7.1 (LICENSE-APACHE)`, `syn@2.0.117 (LICENSE-APACHE)`, `thiserror-impl@1.0.69 (LICENSE-APACHE)`, `thiserror-impl@2.0.18 (LICENSE-APACHE)`, `thiserror@1.0.69 (LICENSE-APACHE)`, `thiserror@2.0.18 (LICENSE-APACHE)`, `typeid@1.0.3 (LICENSE-APACHE)`, `unicode-ident@1.0.24 (LICENSE-APACHE)`, `utf-8@0.7.6 (LICENSE-APACHE)`
 
 <pre>
 Apache License
@@ -2322,7 +2322,7 @@ DEALINGS IN THE SOFTWARE.
 
 <details><summary>License text 22: aws-config@1.8.14 (LICENSE), aws-credential-types@1.2.13 (LICENSE), aws-runtime@1.7.1 (LICENSE) and 12 more</summary>
 
-Components: `aws-config@1.8.14 (LICENSE)`, `aws-credential-types@1.2.13 (LICENSE)`, `aws-runtime@1.7.1 (LICENSE)`, `aws-sigv4@1.4.1 (LICENSE)`, `aws-smithy-async@1.2.13 (LICENSE)`, `aws-smithy-http@0.63.5 (LICENSE)`, `aws-smithy-http-client@1.1.11 (LICENSE)`, `aws-smithy-json@0.62.4 (LICENSE)`, `aws-smithy-observability@0.2.5 (LICENSE)`, `aws-smithy-query@0.60.14 (LICENSE)`, `aws-smithy-runtime@1.10.2 (LICENSE)`, `aws-smithy-runtime-api@1.11.5 (LICENSE)`, `aws-smithy-types@1.4.5 (LICENSE)`, `aws-smithy-xml@0.60.14 (LICENSE)`, `aws-types@1.3.13 (LICENSE)`
+Components: `aws-config@1.8.14 (LICENSE)`, `aws-credential-types@1.2.13 (LICENSE)`, `aws-runtime@1.7.1 (LICENSE)`, `aws-sigv4@1.4.1 (LICENSE)`, `aws-smithy-async@1.2.13 (LICENSE)`, `aws-smithy-http-client@1.1.11 (LICENSE)`, `aws-smithy-http@0.63.5 (LICENSE)`, `aws-smithy-json@0.62.4 (LICENSE)`, `aws-smithy-observability@0.2.5 (LICENSE)`, `aws-smithy-query@0.60.14 (LICENSE)`, `aws-smithy-runtime-api@1.11.5 (LICENSE)`, `aws-smithy-runtime@1.10.2 (LICENSE)`, `aws-smithy-types@1.4.5 (LICENSE)`, `aws-smithy-xml@0.60.14 (LICENSE)`, `aws-types@1.3.13 (LICENSE)`
 
 <pre>
 Apache License
@@ -3422,9 +3422,9 @@ Apache License
 
 </details>
 
-<details><summary>License text 26: bail@2.0.2 (license), ccount@2.0.1 (license), character-entities@2.0.2 (license) and 6 more</summary>
+<details><summary>License text 26: bail@2.0.2 (license), ccount@2.0.1 (license), character-entities-html4@2.1.0 (license) and 6 more</summary>
 
-Components: `bail@2.0.2 (license)`, `ccount@2.0.1 (license)`, `character-entities@2.0.2 (license)`, `character-entities-html4@2.1.0 (license)`, `character-entities-legacy@3.0.0 (license)`, `character-reference-invalid@2.0.1 (license)`, `mdast-util-to-string@4.0.0 (license)`, `unist-util-position@5.0.0 (license)`, `unist-util-visit@5.1.0 (license)`
+Components: `bail@2.0.2 (license)`, `ccount@2.0.1 (license)`, `character-entities-html4@2.1.0 (license)`, `character-entities-legacy@3.0.0 (license)`, `character-entities@2.0.2 (license)`, `character-reference-invalid@2.0.1 (license)`, `mdast-util-to-string@4.0.0 (license)`, `unist-util-position@5.0.0 (license)`, `unist-util-visit@5.1.0 (license)`
 
 <pre>
 (The MIT License)
@@ -3730,7 +3730,7 @@ DEALINGS IN THE SOFTWARE.
 
 <details><summary>License text 30: bitflags@1.3.2 (LICENSE-MIT), bitflags@2.11.0 (LICENSE-MIT), glob@0.3.3 (LICENSE-MIT) and 12 more</summary>
 
-Components: `bitflags@1.3.2 (LICENSE-MIT)`, `bitflags@2.11.0 (LICENSE-MIT)`, `glob@0.3.3 (LICENSE-MIT)`, `log@0.4.29 (LICENSE-MIT)`, `num@0.4.3 (LICENSE-MIT)`, `num-bigint@0.4.6 (LICENSE-MIT)`, `num-complex@0.4.6 (LICENSE-MIT)`, `num-integer@0.1.46 (LICENSE-MIT)`, `num-iter@0.1.45 (LICENSE-MIT)`, `num-rational@0.4.2 (LICENSE-MIT)`, `num-traits@0.2.19 (LICENSE-MIT)`, `regex@1.12.3 (LICENSE-MIT)`, `regex-automata@0.4.14 (LICENSE-MIT)`, `regex-lite@0.1.9 (LICENSE-MIT)`, `regex-syntax@0.8.9 (LICENSE-MIT)`
+Components: `bitflags@1.3.2 (LICENSE-MIT)`, `bitflags@2.11.0 (LICENSE-MIT)`, `glob@0.3.3 (LICENSE-MIT)`, `log@0.4.29 (LICENSE-MIT)`, `num-bigint@0.4.6 (LICENSE-MIT)`, `num-complex@0.4.6 (LICENSE-MIT)`, `num-integer@0.1.46 (LICENSE-MIT)`, `num-iter@0.1.45 (LICENSE-MIT)`, `num-rational@0.4.2 (LICENSE-MIT)`, `num-traits@0.2.19 (LICENSE-MIT)`, `num@0.4.3 (LICENSE-MIT)`, `regex-automata@0.4.14 (LICENSE-MIT)`, `regex-lite@0.1.9 (LICENSE-MIT)`, `regex-syntax@0.8.9 (LICENSE-MIT)`, `regex@1.12.3 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) 2014 The Rust Project Developers
@@ -6109,9 +6109,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 64: cssparser@0.29.6 (LICENSE), cssparser-macros@0.6.1 (LICENSE), dtoa-short@0.3.5 (LICENSE)</summary>
+<details><summary>License text 64: cssparser-macros@0.6.1 (LICENSE), cssparser@0.29.6 (LICENSE), dtoa-short@0.3.5 (LICENSE)</summary>
 
-Components: `cssparser@0.29.6 (LICENSE)`, `cssparser-macros@0.6.1 (LICENSE)`, `dtoa-short@0.3.5 (LICENSE)`
+Components: `cssparser-macros@0.6.1 (LICENSE)`, `cssparser@0.29.6 (LICENSE)`, `dtoa-short@0.3.5 (LICENSE)`
 
 <pre>
 Mozilla Public License Version 2.0
@@ -6593,9 +6593,9 @@ SOFTWARE.
 
 </details>
 
-<details><summary>License text 69: datafusion-catalog@44.0.0 (LICENSE.txt), datafusion-common@44.0.0 (LICENSE.txt), datafusion-common-runtime@44.0.0 (LICENSE.txt) and 15 more</summary>
+<details><summary>License text 69: datafusion-catalog@44.0.0 (LICENSE.txt), datafusion-common-runtime@44.0.0 (LICENSE.txt), datafusion-common@44.0.0 (LICENSE.txt) and 15 more</summary>
 
-Components: `datafusion-catalog@44.0.0 (LICENSE.txt)`, `datafusion-common@44.0.0 (LICENSE.txt)`, `datafusion-common-runtime@44.0.0 (LICENSE.txt)`, `datafusion-execution@44.0.0 (LICENSE.txt)`, `datafusion-expr@44.0.0 (LICENSE.txt)`, `datafusion-expr-common@44.0.0 (LICENSE.txt)`, `datafusion-functions@44.0.0 (LICENSE.txt)`, `datafusion-functions-aggregate@44.0.0 (LICENSE.txt)`, `datafusion-functions-aggregate-common@44.0.0 (LICENSE.txt)`, `datafusion-functions-nested@44.0.0 (LICENSE.txt)`, `datafusion-functions-window@44.0.0 (LICENSE.txt)`, `datafusion-functions-window-common@44.0.0 (LICENSE.txt)`, `datafusion-optimizer@44.0.0 (LICENSE.txt)`, `datafusion-physical-expr@44.0.0 (LICENSE.txt)`, `datafusion-physical-expr-common@44.0.0 (LICENSE.txt)`, `datafusion-physical-optimizer@44.0.0 (LICENSE.txt)`, `datafusion-physical-plan@44.0.0 (LICENSE.txt)`, `datafusion-sql@44.0.0 (LICENSE.txt)`
+Components: `datafusion-catalog@44.0.0 (LICENSE.txt)`, `datafusion-common-runtime@44.0.0 (LICENSE.txt)`, `datafusion-common@44.0.0 (LICENSE.txt)`, `datafusion-execution@44.0.0 (LICENSE.txt)`, `datafusion-expr-common@44.0.0 (LICENSE.txt)`, `datafusion-expr@44.0.0 (LICENSE.txt)`, `datafusion-functions-aggregate-common@44.0.0 (LICENSE.txt)`, `datafusion-functions-aggregate@44.0.0 (LICENSE.txt)`, `datafusion-functions-nested@44.0.0 (LICENSE.txt)`, `datafusion-functions-window-common@44.0.0 (LICENSE.txt)`, `datafusion-functions-window@44.0.0 (LICENSE.txt)`, `datafusion-functions@44.0.0 (LICENSE.txt)`, `datafusion-optimizer@44.0.0 (LICENSE.txt)`, `datafusion-physical-expr-common@44.0.0 (LICENSE.txt)`, `datafusion-physical-expr@44.0.0 (LICENSE.txt)`, `datafusion-physical-optimizer@44.0.0 (LICENSE.txt)`, `datafusion-physical-plan@44.0.0 (LICENSE.txt)`, `datafusion-sql@44.0.0 (LICENSE.txt)`
 
 <pre>
 Apache License
@@ -6813,9 +6813,9 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 </details>
 
-<details><summary>License text 70: datafusion-catalog@44.0.0 (NOTICE.txt), datafusion-common@44.0.0 (NOTICE.txt), datafusion-common-runtime@44.0.0 (NOTICE.txt) and 15 more</summary>
+<details><summary>License text 70: datafusion-catalog@44.0.0 (NOTICE.txt), datafusion-common-runtime@44.0.0 (NOTICE.txt), datafusion-common@44.0.0 (NOTICE.txt) and 15 more</summary>
 
-Components: `datafusion-catalog@44.0.0 (NOTICE.txt)`, `datafusion-common@44.0.0 (NOTICE.txt)`, `datafusion-common-runtime@44.0.0 (NOTICE.txt)`, `datafusion-execution@44.0.0 (NOTICE.txt)`, `datafusion-expr@44.0.0 (NOTICE.txt)`, `datafusion-expr-common@44.0.0 (NOTICE.txt)`, `datafusion-functions@44.0.0 (NOTICE.txt)`, `datafusion-functions-aggregate@44.0.0 (NOTICE.txt)`, `datafusion-functions-aggregate-common@44.0.0 (NOTICE.txt)`, `datafusion-functions-nested@44.0.0 (NOTICE.txt)`, `datafusion-functions-window@44.0.0 (NOTICE.txt)`, `datafusion-functions-window-common@44.0.0 (NOTICE.txt)`, `datafusion-optimizer@44.0.0 (NOTICE.txt)`, `datafusion-physical-expr@44.0.0 (NOTICE.txt)`, `datafusion-physical-expr-common@44.0.0 (NOTICE.txt)`, `datafusion-physical-optimizer@44.0.0 (NOTICE.txt)`, `datafusion-physical-plan@44.0.0 (NOTICE.txt)`, `datafusion-sql@44.0.0 (NOTICE.txt)`
+Components: `datafusion-catalog@44.0.0 (NOTICE.txt)`, `datafusion-common-runtime@44.0.0 (NOTICE.txt)`, `datafusion-common@44.0.0 (NOTICE.txt)`, `datafusion-execution@44.0.0 (NOTICE.txt)`, `datafusion-expr-common@44.0.0 (NOTICE.txt)`, `datafusion-expr@44.0.0 (NOTICE.txt)`, `datafusion-functions-aggregate-common@44.0.0 (NOTICE.txt)`, `datafusion-functions-aggregate@44.0.0 (NOTICE.txt)`, `datafusion-functions-nested@44.0.0 (NOTICE.txt)`, `datafusion-functions-window-common@44.0.0 (NOTICE.txt)`, `datafusion-functions-window@44.0.0 (NOTICE.txt)`, `datafusion-functions@44.0.0 (NOTICE.txt)`, `datafusion-optimizer@44.0.0 (NOTICE.txt)`, `datafusion-physical-expr-common@44.0.0 (NOTICE.txt)`, `datafusion-physical-expr@44.0.0 (NOTICE.txt)`, `datafusion-physical-optimizer@44.0.0 (NOTICE.txt)`, `datafusion-physical-plan@44.0.0 (NOTICE.txt)`, `datafusion-sql@44.0.0 (NOTICE.txt)`
 
 <pre>
 Apache DataFusion
@@ -6857,7 +6857,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 <details><summary>License text 72: decode-named-character-reference@1.3.0 (license), hast-util-to-jsx-runtime@2.3.6 (license), markdown-table@3.0.4 (license) and 30 more</summary>
 
-Components: `decode-named-character-reference@1.3.0 (license)`, `hast-util-to-jsx-runtime@2.3.6 (license)`, `markdown-table@3.0.4 (license)`, `mdast-util-find-and-replace@3.0.2 (license)`, `mdast-util-from-markdown@2.0.2 (license)`, `mdast-util-gfm@3.1.0 (license)`, `mdast-util-gfm-footnote@2.1.0 (license)`, `mdast-util-to-markdown@2.1.2 (license)`, `micromark@4.0.2 (license)`, `micromark-core-commonmark@2.0.3 (license)`, `micromark-extension-gfm-table@2.1.1 (license)`, `micromark-factory-destination@2.0.1 (license)`, `micromark-factory-label@2.0.1 (license)`, `micromark-factory-space@2.0.1 (license)`, `micromark-factory-title@2.0.1 (license)`, `micromark-factory-whitespace@2.0.1 (license)`, `micromark-util-character@2.1.1 (license)`, `micromark-util-chunked@2.0.1 (license)`, `micromark-util-classify-character@2.0.1 (license)`, `micromark-util-combine-extensions@2.0.1 (license)`, `micromark-util-decode-numeric-character-reference@2.0.2 (license)`, `micromark-util-decode-string@2.0.1 (license)`, `micromark-util-encode@2.0.1 (license)`, `micromark-util-html-tag-name@2.0.1 (license)`, `micromark-util-normalize-identifier@2.0.1 (license)`, `micromark-util-resolve-all@2.0.1 (license)`, `micromark-util-sanitize-uri@2.0.1 (license)`, `micromark-util-subtokenize@2.1.0 (license)`, `micromark-util-symbol@2.0.1 (license)`, `micromark-util-types@2.0.2 (license)`, `remark-gfm@4.0.1 (license)`, `remark-rehype@11.1.2 (license)`, `vfile-message@4.0.3 (license)`
+Components: `decode-named-character-reference@1.3.0 (license)`, `hast-util-to-jsx-runtime@2.3.6 (license)`, `markdown-table@3.0.4 (license)`, `mdast-util-find-and-replace@3.0.2 (license)`, `mdast-util-from-markdown@2.0.2 (license)`, `mdast-util-gfm-footnote@2.1.0 (license)`, `mdast-util-gfm@3.1.0 (license)`, `mdast-util-to-markdown@2.1.2 (license)`, `micromark-core-commonmark@2.0.3 (license)`, `micromark-extension-gfm-table@2.1.1 (license)`, `micromark-factory-destination@2.0.1 (license)`, `micromark-factory-label@2.0.1 (license)`, `micromark-factory-space@2.0.1 (license)`, `micromark-factory-title@2.0.1 (license)`, `micromark-factory-whitespace@2.0.1 (license)`, `micromark-util-character@2.1.1 (license)`, `micromark-util-chunked@2.0.1 (license)`, `micromark-util-classify-character@2.0.1 (license)`, `micromark-util-combine-extensions@2.0.1 (license)`, `micromark-util-decode-numeric-character-reference@2.0.2 (license)`, `micromark-util-decode-string@2.0.1 (license)`, `micromark-util-encode@2.0.1 (license)`, `micromark-util-html-tag-name@2.0.1 (license)`, `micromark-util-normalize-identifier@2.0.1 (license)`, `micromark-util-resolve-all@2.0.1 (license)`, `micromark-util-sanitize-uri@2.0.1 (license)`, `micromark-util-subtokenize@2.1.0 (license)`, `micromark-util-symbol@2.0.1 (license)`, `micromark-util-types@2.0.2 (license)`, `micromark@4.0.2 (license)`, `remark-gfm@4.0.1 (license)`, `remark-rehype@11.1.2 (license)`, `vfile-message@4.0.3 (license)`
 
 <pre>
 (The MIT License)
@@ -7279,9 +7279,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 80: dirs@5.0.1 (LICENSE-APACHE), dirs@6.0.0 (LICENSE-APACHE), dirs-sys@0.4.1 (LICENSE-APACHE) and 1 more</summary>
+<details><summary>License text 80: dirs-sys@0.4.1 (LICENSE-APACHE), dirs-sys@0.5.0 (LICENSE-APACHE), dirs@5.0.1 (LICENSE-APACHE) and 1 more</summary>
 
-Components: `dirs@5.0.1 (LICENSE-APACHE)`, `dirs@6.0.0 (LICENSE-APACHE)`, `dirs-sys@0.4.1 (LICENSE-APACHE)`, `dirs-sys@0.5.0 (LICENSE-APACHE)`
+Components: `dirs-sys@0.4.1 (LICENSE-APACHE)`, `dirs-sys@0.5.0 (LICENSE-APACHE)`, `dirs@5.0.1 (LICENSE-APACHE)`, `dirs@6.0.0 (LICENSE-APACHE)`
 
 <pre>
 Apache License
@@ -7462,9 +7462,9 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
 </details>
 
-<details><summary>License text 81: dirs@5.0.1 (LICENSE-MIT), dirs@6.0.0 (LICENSE-MIT), dirs-sys@0.4.1 (LICENSE-MIT) and 1 more</summary>
+<details><summary>License text 81: dirs-sys@0.4.1 (LICENSE-MIT), dirs-sys@0.5.0 (LICENSE-MIT), dirs@5.0.1 (LICENSE-MIT) and 1 more</summary>
 
-Components: `dirs@5.0.1 (LICENSE-MIT)`, `dirs@6.0.0 (LICENSE-MIT)`, `dirs-sys@0.4.1 (LICENSE-MIT)`, `dirs-sys@0.5.0 (LICENSE-MIT)`
+Components: `dirs-sys@0.4.1 (LICENSE-MIT)`, `dirs-sys@0.5.0 (LICENSE-MIT)`, `dirs@5.0.1 (LICENSE-MIT)`, `dirs@6.0.0 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) 2018-2019 dirs-rs contributors
@@ -8020,7 +8020,7 @@ DEALINGS IN THE SOFTWARE.
 
 <details><summary>License text 89: encoding_rs@0.8.35 (LICENSE-APACHE), iri-string@0.7.10 (LICENSE-APACHE.txt), object_store@0.11.2 (LICENSE.txt) and 5 more</summary>
 
-Components: `encoding_rs@0.8.35 (LICENSE-APACHE)`, `iri-string@0.7.10 (LICENSE-APACHE.txt)`, `object_store@0.11.2 (LICENSE.txt)`, `serialize-to-javascript@0.1.2 (LICENSE-APACHE)`, `serialize-to-javascript-impl@0.1.2 (LICENSE-APACHE)`, `tinyvec@1.10.0 (LICENSE-APACHE.md)`, `utf8_iter@1.0.4 (LICENSE-APACHE)`, `zeroize@1.8.2 (LICENSE-APACHE)`
+Components: `encoding_rs@0.8.35 (LICENSE-APACHE)`, `iri-string@0.7.10 (LICENSE-APACHE.txt)`, `object_store@0.11.2 (LICENSE.txt)`, `serialize-to-javascript-impl@0.1.2 (LICENSE-APACHE)`, `serialize-to-javascript@0.1.2 (LICENSE-APACHE)`, `tinyvec@1.10.0 (LICENSE-APACHE.md)`, `utf8_iter@1.0.4 (LICENSE-APACHE)`, `zeroize@1.8.2 (LICENSE-APACHE)`
 
 <pre>
 Apache License
@@ -8385,7 +8385,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 <details><summary>License text 95: estree-util-is-identifier-name@3.0.0 (license), mdast-util-gfm-autolink-literal@2.0.1 (license), mdast-util-gfm-strikethrough@2.0.0 (license) and 10 more</summary>
 
-Components: `estree-util-is-identifier-name@3.0.0 (license)`, `mdast-util-gfm-autolink-literal@2.0.1 (license)`, `mdast-util-gfm-strikethrough@2.0.0 (license)`, `mdast-util-gfm-table@2.0.0 (license)`, `mdast-util-gfm-task-list-item@2.0.0 (license)`, `mdast-util-mdx-expression@2.0.1 (license)`, `mdast-util-mdx-jsx@3.2.0 (license)`, `mdast-util-mdxjs-esm@2.0.1 (license)`, `micromark-extension-gfm@3.0.0 (license)`, `micromark-extension-gfm-autolink-literal@2.1.0 (license)`, `micromark-extension-gfm-strikethrough@2.1.0 (license)`, `micromark-extension-gfm-tagfilter@2.0.0 (license)`, `micromark-extension-gfm-task-list-item@2.1.0 (license)`
+Components: `estree-util-is-identifier-name@3.0.0 (license)`, `mdast-util-gfm-autolink-literal@2.0.1 (license)`, `mdast-util-gfm-strikethrough@2.0.0 (license)`, `mdast-util-gfm-table@2.0.0 (license)`, `mdast-util-gfm-task-list-item@2.0.0 (license)`, `mdast-util-mdx-expression@2.0.1 (license)`, `mdast-util-mdx-jsx@3.2.0 (license)`, `mdast-util-mdxjs-esm@2.0.1 (license)`, `micromark-extension-gfm-autolink-literal@2.1.0 (license)`, `micromark-extension-gfm-strikethrough@2.1.0 (license)`, `micromark-extension-gfm-tagfilter@2.0.0 (license)`, `micromark-extension-gfm-task-list-item@2.1.0 (license)`, `micromark-extension-gfm@3.0.0 (license)`
 
 <pre>
 (The MIT License)
@@ -8805,9 +8805,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 109: futures@0.3.32 (LICENSE-APACHE), futures-channel@0.3.32 (LICENSE-APACHE), futures-core@0.3.32 (LICENSE-APACHE) and 6 more</summary>
+<details><summary>License text 109: futures-channel@0.3.32 (LICENSE-APACHE), futures-core@0.3.32 (LICENSE-APACHE), futures-executor@0.3.32 (LICENSE-APACHE) and 6 more</summary>
 
-Components: `futures@0.3.32 (LICENSE-APACHE)`, `futures-channel@0.3.32 (LICENSE-APACHE)`, `futures-core@0.3.32 (LICENSE-APACHE)`, `futures-executor@0.3.32 (LICENSE-APACHE)`, `futures-io@0.3.32 (LICENSE-APACHE)`, `futures-macro@0.3.32 (LICENSE-APACHE)`, `futures-sink@0.3.32 (LICENSE-APACHE)`, `futures-task@0.3.32 (LICENSE-APACHE)`, `futures-util@0.3.32 (LICENSE-APACHE)`
+Components: `futures-channel@0.3.32 (LICENSE-APACHE)`, `futures-core@0.3.32 (LICENSE-APACHE)`, `futures-executor@0.3.32 (LICENSE-APACHE)`, `futures-io@0.3.32 (LICENSE-APACHE)`, `futures-macro@0.3.32 (LICENSE-APACHE)`, `futures-sink@0.3.32 (LICENSE-APACHE)`, `futures-task@0.3.32 (LICENSE-APACHE)`, `futures-util@0.3.32 (LICENSE-APACHE)`, `futures@0.3.32 (LICENSE-APACHE)`
 
 <pre>
 Apache License
@@ -9016,9 +9016,9 @@ limitations under the License.
 
 </details>
 
-<details><summary>License text 110: futures@0.3.32 (LICENSE-MIT), futures-channel@0.3.32 (LICENSE-MIT), futures-core@0.3.32 (LICENSE-MIT) and 6 more</summary>
+<details><summary>License text 110: futures-channel@0.3.32 (LICENSE-MIT), futures-core@0.3.32 (LICENSE-MIT), futures-executor@0.3.32 (LICENSE-MIT) and 6 more</summary>
 
-Components: `futures@0.3.32 (LICENSE-MIT)`, `futures-channel@0.3.32 (LICENSE-MIT)`, `futures-core@0.3.32 (LICENSE-MIT)`, `futures-executor@0.3.32 (LICENSE-MIT)`, `futures-io@0.3.32 (LICENSE-MIT)`, `futures-macro@0.3.32 (LICENSE-MIT)`, `futures-sink@0.3.32 (LICENSE-MIT)`, `futures-task@0.3.32 (LICENSE-MIT)`, `futures-util@0.3.32 (LICENSE-MIT)`
+Components: `futures-channel@0.3.32 (LICENSE-MIT)`, `futures-core@0.3.32 (LICENSE-MIT)`, `futures-executor@0.3.32 (LICENSE-MIT)`, `futures-io@0.3.32 (LICENSE-MIT)`, `futures-macro@0.3.32 (LICENSE-MIT)`, `futures-sink@0.3.32 (LICENSE-MIT)`, `futures-task@0.3.32 (LICENSE-MIT)`, `futures-util@0.3.32 (LICENSE-MIT)`, `futures@0.3.32 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) 2016 Alex Crichton
@@ -10232,9 +10232,9 @@ of these licenses, at your option.
 
 </details>
 
-<details><summary>License text 132: hyper-rustls@0.24.2 (LICENSE-ISC), hyper-rustls@0.27.7 (LICENSE-ISC), rustls@0.21.12 (LICENSE-ISC) and 4 more</summary>
+<details><summary>License text 132: hyper-rustls@0.24.2 (LICENSE-ISC), hyper-rustls@0.27.7 (LICENSE-ISC), rustls-native-certs@0.8.3 (LICENSE-ISC) and 4 more</summary>
 
-Components: `hyper-rustls@0.24.2 (LICENSE-ISC)`, `hyper-rustls@0.27.7 (LICENSE-ISC)`, `rustls@0.21.12 (LICENSE-ISC)`, `rustls@0.23.37 (LICENSE-ISC)`, `rustls-native-certs@0.8.3 (LICENSE-ISC)`, `rustls-pemfile@2.2.0 (LICENSE-ISC)`, `sct@0.7.1 (LICENSE-ISC)`
+Components: `hyper-rustls@0.24.2 (LICENSE-ISC)`, `hyper-rustls@0.27.7 (LICENSE-ISC)`, `rustls-native-certs@0.8.3 (LICENSE-ISC)`, `rustls-pemfile@2.2.0 (LICENSE-ISC)`, `rustls@0.21.12 (LICENSE-ISC)`, `rustls@0.23.37 (LICENSE-ISC)`, `sct@0.7.1 (LICENSE-ISC)`
 
 <pre>
 ISC License (ISC)
@@ -10256,9 +10256,9 @@ THIS SOFTWARE.
 
 </details>
 
-<details><summary>License text 133: hyper-rustls@0.24.2 (LICENSE-MIT), hyper-rustls@0.27.7 (LICENSE-MIT), rustls@0.21.12 (LICENSE-MIT) and 4 more</summary>
+<details><summary>License text 133: hyper-rustls@0.24.2 (LICENSE-MIT), hyper-rustls@0.27.7 (LICENSE-MIT), rustls-native-certs@0.8.3 (LICENSE-MIT) and 4 more</summary>
 
-Components: `hyper-rustls@0.24.2 (LICENSE-MIT)`, `hyper-rustls@0.27.7 (LICENSE-MIT)`, `rustls@0.21.12 (LICENSE-MIT)`, `rustls@0.23.37 (LICENSE-MIT)`, `rustls-native-certs@0.8.3 (LICENSE-MIT)`, `rustls-pemfile@2.2.0 (LICENSE-MIT)`, `sct@0.7.1 (LICENSE-MIT)`
+Components: `hyper-rustls@0.24.2 (LICENSE-MIT)`, `hyper-rustls@0.27.7 (LICENSE-MIT)`, `rustls-native-certs@0.8.3 (LICENSE-MIT)`, `rustls-pemfile@2.2.0 (LICENSE-MIT)`, `rustls@0.21.12 (LICENSE-MIT)`, `rustls@0.23.37 (LICENSE-MIT)`, `sct@0.7.1 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) 2016 Joseph Birr-Pixton &lt;jpixton@gmail.com&gt;
@@ -10464,7 +10464,7 @@ SOFTWARE.
 
 <details><summary>License text 140: icu_collections@2.1.1 (LICENSE), icu_locale_core@2.1.1 (LICENSE), icu_normalizer@2.1.1 (LICENSE) and 15 more</summary>
 
-Components: `icu_collections@2.1.1 (LICENSE)`, `icu_locale_core@2.1.1 (LICENSE)`, `icu_normalizer@2.1.1 (LICENSE)`, `icu_normalizer_data@2.1.1 (LICENSE)`, `icu_properties@2.1.2 (LICENSE)`, `icu_properties_data@2.1.2 (LICENSE)`, `icu_provider@2.1.1 (LICENSE)`, `litemap@0.8.1 (LICENSE)`, `potential_utf@0.1.4 (LICENSE)`, `tinystr@0.8.2 (LICENSE)`, `writeable@0.6.2 (LICENSE)`, `yoke@0.8.1 (LICENSE)`, `yoke-derive@0.8.1 (LICENSE)`, `zerofrom@0.1.6 (LICENSE)`, `zerofrom-derive@0.1.6 (LICENSE)`, `zerotrie@0.2.3 (LICENSE)`, `zerovec@0.11.5 (LICENSE)`, `zerovec-derive@0.11.2 (LICENSE)`
+Components: `icu_collections@2.1.1 (LICENSE)`, `icu_locale_core@2.1.1 (LICENSE)`, `icu_normalizer@2.1.1 (LICENSE)`, `icu_normalizer_data@2.1.1 (LICENSE)`, `icu_properties@2.1.2 (LICENSE)`, `icu_properties_data@2.1.2 (LICENSE)`, `icu_provider@2.1.1 (LICENSE)`, `litemap@0.8.1 (LICENSE)`, `potential_utf@0.1.4 (LICENSE)`, `tinystr@0.8.2 (LICENSE)`, `writeable@0.6.2 (LICENSE)`, `yoke-derive@0.8.1 (LICENSE)`, `yoke@0.8.1 (LICENSE)`, `zerofrom-derive@0.1.6 (LICENSE)`, `zerofrom@0.1.6 (LICENSE)`, `zerotrie@0.2.3 (LICENSE)`, `zerovec-derive@0.11.2 (LICENSE)`, `zerovec@0.11.5 (LICENSE)`
 
 <pre>
 UNICODE LICENSE V3
@@ -11795,9 +11795,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 159: lazy_static@1.5.0 (LICENSE-MIT), rayon@1.11.0 (LICENSE-MIT), rayon-core@1.13.0 (LICENSE-MIT)</summary>
+<details><summary>License text 159: lazy_static@1.5.0 (LICENSE-MIT), rayon-core@1.13.0 (LICENSE-MIT), rayon@1.11.0 (LICENSE-MIT)</summary>
 
-Components: `lazy_static@1.5.0 (LICENSE-MIT)`, `rayon@1.11.0 (LICENSE-MIT)`, `rayon-core@1.13.0 (LICENSE-MIT)`
+Components: `lazy_static@1.5.0 (LICENSE-MIT)`, `rayon-core@1.13.0 (LICENSE-MIT)`, `rayon@1.11.0 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) 2010 The Rust Project Developers
@@ -16967,14 +16967,14 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 </details>
 
-<details><summary>License text 236: react-markdown@10.1.0 (license)</summary>
+<details><summary>License text 236: react-dom@19.2.4 (LICENSE), react@19.2.4 (LICENSE), scheduler@0.27.0 (LICENSE)</summary>
 
-Components: `react-markdown@10.1.0 (license)`
+Components: `react-dom@19.2.4 (LICENSE)`, `react@19.2.4 (LICENSE)`, `scheduler@0.27.0 (LICENSE)`
 
 <pre>
-The MIT License (MIT)
+MIT License
 
-Copyright (c) Espen Hovlandsdal
+Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -16997,14 +16997,14 @@ SOFTWARE.
 
 </details>
 
-<details><summary>License text 237: react@19.2.4 (LICENSE), react-dom@19.2.4 (LICENSE), scheduler@0.27.0 (LICENSE)</summary>
+<details><summary>License text 237: react-markdown@10.1.0 (license)</summary>
 
-Components: `react@19.2.4 (LICENSE)`, `react-dom@19.2.4 (LICENSE)`, `scheduler@0.27.0 (LICENSE)`
+Components: `react-markdown@10.1.0 (license)`
 
 <pre>
-MIT License
+The MIT License (MIT)
 
-Copyright (c) Meta Platforms, Inc. and affiliates.
+Copyright (c) Espen Hovlandsdal
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -18265,9 +18265,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 261: serialize-to-javascript@0.1.2 (LICENSE-MIT), serialize-to-javascript-impl@0.1.2 (LICENSE-MIT)</summary>
+<details><summary>License text 261: serialize-to-javascript-impl@0.1.2 (LICENSE-MIT), serialize-to-javascript@0.1.2 (LICENSE-MIT)</summary>
 
-Components: `serialize-to-javascript@0.1.2 (LICENSE-MIT)`, `serialize-to-javascript-impl@0.1.2 (LICENSE-MIT)`
+Components: `serialize-to-javascript-impl@0.1.2 (LICENSE-MIT)`, `serialize-to-javascript@0.1.2 (LICENSE-MIT)`
 
 <pre>
 MIT License
@@ -18665,9 +18665,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 269: snafu@0.7.5 (LICENSE-APACHE), snafu@0.8.9 (LICENSE-APACHE), snafu-derive@0.7.5 (LICENSE-APACHE) and 1 more</summary>
+<details><summary>License text 269: snafu-derive@0.7.5 (LICENSE-APACHE), snafu-derive@0.8.9 (LICENSE-APACHE), snafu@0.7.5 (LICENSE-APACHE) and 1 more</summary>
 
-Components: `snafu@0.7.5 (LICENSE-APACHE)`, `snafu@0.8.9 (LICENSE-APACHE)`, `snafu-derive@0.7.5 (LICENSE-APACHE)`, `snafu-derive@0.8.9 (LICENSE-APACHE)`
+Components: `snafu-derive@0.7.5 (LICENSE-APACHE)`, `snafu-derive@0.8.9 (LICENSE-APACHE)`, `snafu@0.7.5 (LICENSE-APACHE)`, `snafu@0.8.9 (LICENSE-APACHE)`
 
 <pre>
 Apache License
@@ -18875,9 +18875,9 @@ limitations under the License.
 
 </details>
 
-<details><summary>License text 270: snafu@0.7.5 (LICENSE-MIT), snafu@0.8.9 (LICENSE-MIT), snafu-derive@0.7.5 (LICENSE-MIT) and 1 more</summary>
+<details><summary>License text 270: snafu-derive@0.7.5 (LICENSE-MIT), snafu-derive@0.8.9 (LICENSE-MIT), snafu@0.7.5 (LICENSE-MIT) and 1 more</summary>
 
-Components: `snafu@0.7.5 (LICENSE-MIT)`, `snafu@0.8.9 (LICENSE-MIT)`, `snafu-derive@0.7.5 (LICENSE-MIT)`, `snafu-derive@0.8.9 (LICENSE-MIT)`
+Components: `snafu-derive@0.7.5 (LICENSE-MIT)`, `snafu-derive@0.8.9 (LICENSE-MIT)`, `snafu@0.7.5 (LICENSE-MIT)`, `snafu@0.8.9 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) 2019- Jake Goulding
@@ -19658,9 +19658,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 291: time@0.3.47 (LICENSE-MIT), time-core@0.1.8 (LICENSE-MIT), time-macros@0.2.27 (LICENSE-MIT)</summary>
+<details><summary>License text 291: time-core@0.1.8 (LICENSE-MIT), time-macros@0.2.27 (LICENSE-MIT), time@0.3.47 (LICENSE-MIT)</summary>
 
-Components: `time@0.3.47 (LICENSE-MIT)`, `time-core@0.1.8 (LICENSE-MIT)`, `time-macros@0.2.27 (LICENSE-MIT)`
+Components: `time-core@0.1.8 (LICENSE-MIT)`, `time-macros@0.2.27 (LICENSE-MIT)`, `time@0.3.47 (LICENSE-MIT)`
 
 <pre>
 Copyright (c) Jacob Pratt et al.
@@ -19985,9 +19985,9 @@ SOFTWARE.
 
 </details>
 
-<details><summary>License text 296: tokio-native-tls@0.3.1 (LICENSE), tracing@0.1.44 (LICENSE), tracing-attributes@0.1.31 (LICENSE) and 1 more</summary>
+<details><summary>License text 296: tokio-native-tls@0.3.1 (LICENSE), tracing-attributes@0.1.31 (LICENSE), tracing-core@0.1.36 (LICENSE) and 1 more</summary>
 
-Components: `tokio-native-tls@0.3.1 (LICENSE)`, `tracing@0.1.44 (LICENSE)`, `tracing-attributes@0.1.31 (LICENSE)`, `tracing-core@0.1.36 (LICENSE)`
+Components: `tokio-native-tls@0.3.1 (LICENSE)`, `tracing-attributes@0.1.31 (LICENSE)`, `tracing-core@0.1.36 (LICENSE)`, `tracing@0.1.44 (LICENSE)`
 
 <pre>
 Copyright (c) 2019 Tokio Contributors
@@ -20263,9 +20263,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 299: tokio@1.49.0 (LICENSE), tokio-stream@0.1.18 (LICENSE), tokio-util@0.7.18 (LICENSE)</summary>
+<details><summary>License text 299: tokio-stream@0.1.18 (LICENSE), tokio-util@0.7.18 (LICENSE), tokio@1.49.0 (LICENSE)</summary>
 
-Components: `tokio@1.49.0 (LICENSE)`, `tokio-stream@0.1.18 (LICENSE)`, `tokio-util@0.7.18 (LICENSE)`
+Components: `tokio-stream@0.1.18 (LICENSE)`, `tokio-util@0.7.18 (LICENSE)`, `tokio@1.49.0 (LICENSE)`
 
 <pre>
 MIT License
@@ -20327,9 +20327,9 @@ DEALINGS IN THE SOFTWARE.
 
 </details>
 
-<details><summary>License text 301: tower@0.5.3 (LICENSE), tower-layer@0.3.3 (LICENSE), tower-service@0.3.3 (LICENSE)</summary>
+<details><summary>License text 301: tower-layer@0.3.3 (LICENSE), tower-service@0.3.3 (LICENSE), tower@0.5.3 (LICENSE)</summary>
 
-Components: `tower@0.5.3 (LICENSE)`, `tower-layer@0.3.3 (LICENSE)`, `tower-service@0.3.3 (LICENSE)`
+Components: `tower-layer@0.3.3 (LICENSE)`, `tower-service@0.3.3 (LICENSE)`, `tower@0.5.3 (LICENSE)`
 
 <pre>
 Copyright (c) 2019 Tower Contributors
@@ -21456,9 +21456,9 @@ Creator: Person: Daniel Thompson-Yvetot
 
 </details>
 
-<details><summary>License text 326: windows@0.61.3 (license-apache-2.0), windows-collections@0.2.0 (license-apache-2.0), windows-core@0.61.2 (license-apache-2.0) and 24 more</summary>
+<details><summary>License text 326: windows-collections@0.2.0 (license-apache-2.0), windows-core@0.61.2 (license-apache-2.0), windows-future@0.2.1 (license-apache-2.0) and 24 more</summary>
 
-Components: `windows@0.61.3 (license-apache-2.0)`, `windows-collections@0.2.0 (license-apache-2.0)`, `windows-core@0.61.2 (license-apache-2.0)`, `windows-future@0.2.1 (license-apache-2.0)`, `windows-implement@0.60.2 (license-apache-2.0)`, `windows-interface@0.59.3 (license-apache-2.0)`, `windows-link@0.1.3 (license-apache-2.0)`, `windows-link@0.2.1 (license-apache-2.0)`, `windows-numerics@0.2.0 (license-apache-2.0)`, `windows-registry@0.6.1 (license-apache-2.0)`, `windows-result@0.3.4 (license-apache-2.0)`, `windows-result@0.4.1 (license-apache-2.0)`, `windows-strings@0.4.2 (license-apache-2.0)`, `windows-strings@0.5.1 (license-apache-2.0)`, `windows-sys@0.48.0 (license-apache-2.0)`, `windows-sys@0.52.0 (license-apache-2.0)`, `windows-sys@0.59.0 (license-apache-2.0)`, `windows-sys@0.60.2 (license-apache-2.0)`, `windows-sys@0.61.2 (license-apache-2.0)`, `windows-targets@0.48.5 (license-apache-2.0)`, `windows-targets@0.52.6 (license-apache-2.0)`, `windows-targets@0.53.5 (license-apache-2.0)`, `windows-threading@0.1.0 (license-apache-2.0)`, `windows-version@0.1.7 (license-apache-2.0)`, `windows_x86_64_msvc@0.48.5 (license-apache-2.0)`, `windows_x86_64_msvc@0.52.6 (license-apache-2.0)`, `windows_x86_64_msvc@0.53.1 (license-apache-2.0)`
+Components: `windows-collections@0.2.0 (license-apache-2.0)`, `windows-core@0.61.2 (license-apache-2.0)`, `windows-future@0.2.1 (license-apache-2.0)`, `windows-implement@0.60.2 (license-apache-2.0)`, `windows-interface@0.59.3 (license-apache-2.0)`, `windows-link@0.1.3 (license-apache-2.0)`, `windows-link@0.2.1 (license-apache-2.0)`, `windows-numerics@0.2.0 (license-apache-2.0)`, `windows-registry@0.6.1 (license-apache-2.0)`, `windows-result@0.3.4 (license-apache-2.0)`, `windows-result@0.4.1 (license-apache-2.0)`, `windows-strings@0.4.2 (license-apache-2.0)`, `windows-strings@0.5.1 (license-apache-2.0)`, `windows-sys@0.48.0 (license-apache-2.0)`, `windows-sys@0.52.0 (license-apache-2.0)`, `windows-sys@0.59.0 (license-apache-2.0)`, `windows-sys@0.60.2 (license-apache-2.0)`, `windows-sys@0.61.2 (license-apache-2.0)`, `windows-targets@0.48.5 (license-apache-2.0)`, `windows-targets@0.52.6 (license-apache-2.0)`, `windows-targets@0.53.5 (license-apache-2.0)`, `windows-threading@0.1.0 (license-apache-2.0)`, `windows-version@0.1.7 (license-apache-2.0)`, `windows@0.61.3 (license-apache-2.0)`, `windows_x86_64_msvc@0.48.5 (license-apache-2.0)`, `windows_x86_64_msvc@0.52.6 (license-apache-2.0)`, `windows_x86_64_msvc@0.53.1 (license-apache-2.0)`
 
 <pre>
 Apache License
@@ -21666,9 +21666,9 @@ Apache License
 
 </details>
 
-<details><summary>License text 327: windows@0.61.3 (license-mit), windows-collections@0.2.0 (license-mit), windows-core@0.61.2 (license-mit) and 24 more</summary>
+<details><summary>License text 327: windows-collections@0.2.0 (license-mit), windows-core@0.61.2 (license-mit), windows-future@0.2.1 (license-mit) and 24 more</summary>
 
-Components: `windows@0.61.3 (license-mit)`, `windows-collections@0.2.0 (license-mit)`, `windows-core@0.61.2 (license-mit)`, `windows-future@0.2.1 (license-mit)`, `windows-implement@0.60.2 (license-mit)`, `windows-interface@0.59.3 (license-mit)`, `windows-link@0.1.3 (license-mit)`, `windows-link@0.2.1 (license-mit)`, `windows-numerics@0.2.0 (license-mit)`, `windows-registry@0.6.1 (license-mit)`, `windows-result@0.3.4 (license-mit)`, `windows-result@0.4.1 (license-mit)`, `windows-strings@0.4.2 (license-mit)`, `windows-strings@0.5.1 (license-mit)`, `windows-sys@0.48.0 (license-mit)`, `windows-sys@0.52.0 (license-mit)`, `windows-sys@0.59.0 (license-mit)`, `windows-sys@0.60.2 (license-mit)`, `windows-sys@0.61.2 (license-mit)`, `windows-targets@0.48.5 (license-mit)`, `windows-targets@0.52.6 (license-mit)`, `windows-targets@0.53.5 (license-mit)`, `windows-threading@0.1.0 (license-mit)`, `windows-version@0.1.7 (license-mit)`, `windows_x86_64_msvc@0.48.5 (license-mit)`, `windows_x86_64_msvc@0.52.6 (license-mit)`, `windows_x86_64_msvc@0.53.1 (license-mit)`
+Components: `windows-collections@0.2.0 (license-mit)`, `windows-core@0.61.2 (license-mit)`, `windows-future@0.2.1 (license-mit)`, `windows-implement@0.60.2 (license-mit)`, `windows-interface@0.59.3 (license-mit)`, `windows-link@0.1.3 (license-mit)`, `windows-link@0.2.1 (license-mit)`, `windows-numerics@0.2.0 (license-mit)`, `windows-registry@0.6.1 (license-mit)`, `windows-result@0.3.4 (license-mit)`, `windows-result@0.4.1 (license-mit)`, `windows-strings@0.4.2 (license-mit)`, `windows-strings@0.5.1 (license-mit)`, `windows-sys@0.48.0 (license-mit)`, `windows-sys@0.52.0 (license-mit)`, `windows-sys@0.59.0 (license-mit)`, `windows-sys@0.60.2 (license-mit)`, `windows-sys@0.61.2 (license-mit)`, `windows-targets@0.48.5 (license-mit)`, `windows-targets@0.52.6 (license-mit)`, `windows-targets@0.53.5 (license-mit)`, `windows-threading@0.1.0 (license-mit)`, `windows-version@0.1.7 (license-mit)`, `windows@0.61.3 (license-mit)`, `windows_x86_64_msvc@0.48.5 (license-mit)`, `windows_x86_64_msvc@0.52.6 (license-mit)`, `windows_x86_64_msvc@0.53.1 (license-mit)`
 
 <pre>
 MIT License
@@ -22129,7 +22129,24 @@ MIT or Apache-2.0
 
 </details>
 
-<details><summary>License text 337: zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.BSD-3-Clause)</summary>
+<details><summary>License text 337: zstd-safe@7.2.4 (LICENSE.Mit), zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.Mit), zstd@0.13.3 (LICENSE)</summary>
+
+Components: `zstd-safe@7.2.4 (LICENSE.Mit)`, `zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.Mit)`, `zstd@0.13.3 (LICENSE)`
+
+<pre>
+The MIT License (MIT)
+Copyright (c) 2016 Alexandre Bury
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+</pre>
+
+</details>
+
+<details><summary>License text 338: zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.BSD-3-Clause)</summary>
 
 Components: `zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.BSD-3-Clause)`
 
@@ -22166,23 +22183,6 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-</details>
-
-<details><summary>License text 338: zstd@0.13.3 (LICENSE), zstd-safe@7.2.4 (LICENSE.Mit), zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.Mit)</summary>
-
-Components: `zstd@0.13.3 (LICENSE)`, `zstd-safe@7.2.4 (LICENSE.Mit)`, `zstd-sys@2.0.16+zstd.1.5.7 (LICENSE.Mit)`
-
-<pre>
-The MIT License (MIT)
-Copyright (c) 2016 Alexandre Bury
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 </pre>
 
 </details>
