@@ -208,6 +208,13 @@ function reportMismatch(expected, generated) {
   if (missingGroups.length || unexpectedGroups.length) {
     console.error(`License-text difference: missing=[${missingGroups.join(', ')}] unexpected=[${unexpectedGroups.join(', ')}]`);
   }
+
+  const expectedLines = normalize(expected).split('\n');
+  const generatedLines = normalize(generated).split('\n');
+  const firstDifference = expectedLines.findIndex((line, index) => line !== generatedLines[index]);
+  if (firstDifference >= 0) {
+    console.error(`First content difference at line ${firstDifference + 1}: expected=${JSON.stringify(expectedLines[firstDifference])} generated=${JSON.stringify(generatedLines[firstDifference])}`);
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
