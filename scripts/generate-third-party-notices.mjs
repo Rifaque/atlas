@@ -12,6 +12,14 @@ const normalize = (value) => value.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '
 const escapeCell = (value) => String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 export const compareText = (left, right) => (left === right ? 0 : (left < right ? -1 : 1));
+export const dedupeNoticePackages = (packages) => {
+  const unique = new Map();
+  for (const pkg of packages) {
+    const identity = `${pkg.ecosystem}:${pkg.name}@${pkg.version}`;
+    if (!unique.has(identity)) unique.set(identity, pkg);
+  }
+  return [...unique.values()];
+};
 
 function command(name, args, cwd = root) {
   if (process.platform === 'win32' && name === 'pnpm') {
@@ -69,14 +77,15 @@ function rustPackages() {
     '--edges', 'normal', '--prefix', 'none', '--format', '{p}',
   ]);
   const active = new Set(tree.split(/\r?\n/).filter(Boolean).map((line) => line.replace(/ \(\*\)$/, '')));
-  return [...active].map((display) => {
+  const packages = [];
+  for (const display of active) {
     const match = /^(\S+) v(\S+)/.exec(display);
     if (!match) throw new Error(`Could not parse cargo tree package: ${display}`);
     const [, name, version] = match;
-    if (name === 'app' && version === '1.0.0') return null;
+    if (name === 'app' && version === '1.0.0') continue;
     const pkg = metadata.packages.find((candidate) => candidate.name === name && candidate.version === version);
     if (!pkg) throw new Error(`Cargo metadata missing active package: ${name}@${version}`);
-    return {
+    packages.push({
       ecosystem: 'Rust',
       name,
       version,
@@ -84,8 +93,9 @@ function rustPackages() {
       authors: (pkg.authors ?? []).join(', '),
       homepage: pkg.homepage ?? pkg.repository ?? '',
       packageDir: path.dirname(pkg.manifest_path),
-    };
-  }).filter(Boolean);
+    });
+  }
+  return dedupeNoticePackages(packages);
 }
 
 function render() {
