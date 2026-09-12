@@ -679,3 +679,26 @@ SHOULD FIX items remain (trusted signing if adoption warrants it; broader
 real-repository retrieval calibration), with four POST-1.0 items (SmartScreen/
 trusted signing, Linux validation, macOS support/notarization, updater
 infrastructure). No release operation was performed.
+
+## Release Execution Incident and Correction Plan (2026-09-12)
+
+The first release execution pushed commit
+`b167078b85c4b1dd84fd65e33cc7278a89b32e09` and prematurely created annotated
+tag `v1.0.0` at that commit, but did not create a GitHub Release, upload any
+artifact, or deploy the website. The historical token-shaped value removed from
+`website/README.md` was checked privately and returned an invalid/revoked result;
+its historical exposure remains documented without rewriting history.
+
+GitHub's fresh Linux quality runners rejected `THIRD_PARTY_NOTICES.md` because
+the generator used locale-sensitive ordering. The correction replaces that order
+with deterministic code-unit comparisons and adds a direct ordering regression
+test. The checked-in notices resource is regenerated, so a new NSIS candidate is
+required before publication even though application behavior is unchanged.
+
+Website verification itself passed. The separate Vercel production job did not
+start deployment because `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and
+`VERCEL_PROJECT_ID` were not configured as GitHub repository secrets. No
+credential was committed or fabricated. After the corrected `main` commit passes
+quality CI, the owner-approved remediation is to delete the unpublished premature
+tag locally and remotely, recreate `v1.0.0` at the corrected commit, and verify
+tag CI before publication.

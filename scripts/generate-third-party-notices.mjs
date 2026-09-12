@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(import.meta.dirname, '..');
 const outputPath = path.join(root, 'THIRD_PARTY_NOTICES.md');
@@ -10,6 +11,7 @@ const checkOnly = process.argv.includes('--check');
 const normalize = (value) => value.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '').trim();
 const escapeCell = (value) => String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+export const compareText = (left, right) => (left === right ? 0 : (left < right ? -1 : 1));
 
 function command(name, args, cwd = root) {
   if (process.platform === 'win32' && name === 'pnpm') {
@@ -26,7 +28,7 @@ function licenseFiles(packageDir) {
   if (!packageDir || !fs.existsSync(packageDir)) return [];
   return fs.readdirSync(packageDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && /^(license|copying|notice)(?:[._-].*)?$/i.test(entry.name))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => compareText(a.name, b.name))
     .map((entry) => path.join(packageDir, entry.name));
 }
 
@@ -88,9 +90,9 @@ function rustPackages() {
 
 function render() {
   const packages = [...javascriptPackages(), ...rustPackages()]
-    .sort((a, b) => a.ecosystem.localeCompare(b.ecosystem)
-      || a.name.localeCompare(b.name)
-      || a.version.localeCompare(b.version));
+    .sort((a, b) => compareText(a.ecosystem, b.ecosystem)
+      || compareText(a.name, b.name)
+      || compareText(a.version, b.version));
   const missingMetadata = packages.filter((pkg) => pkg.license === 'UNDECLARED');
   if (missingMetadata.length) {
     throw new Error(`Dependencies without license metadata: ${missingMetadata.map((pkg) => `${pkg.name}@${pkg.version}`).join(', ')}`);
@@ -126,7 +128,7 @@ function render() {
     '',
     '| Declared license expression | Components |',
     '| --- | ---: |',
-    ...[...byLicense.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([license, count]) => `| ${escapeCell(license)} | ${count} |`),
+    ...[...byLicense.entries()].sort(([a], [b]) => compareText(a, b)).map(([license, count]) => `| ${escapeCell(license)} | ${count} |`),
     '',
     '## Shipped component inventory',
     '',
@@ -147,7 +149,7 @@ function render() {
   ];
 
   let index = 0;
-  for (const item of [...texts.values()].sort((a, b) => a.components[0].localeCompare(b.components[0]))) {
+  for (const item of [...texts.values()].sort((a, b) => compareText(a.components[0], b.components[0]))) {
     index += 1;
     lines.push(
       `<details><summary>License text ${index}: ${escapeCell(item.components.slice(0, 3).join(', '))}${item.components.length > 3 ? ` and ${item.components.length - 3} more` : ''}</summary>`,
@@ -166,14 +168,16 @@ function render() {
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
-const generated = render();
-if (checkOnly) {
-  if (!fs.existsSync(outputPath) || normalize(fs.readFileSync(outputPath, 'utf8')) !== normalize(generated)) {
-    console.error('THIRD_PARTY_NOTICES.md is missing or stale. Run pnpm notices:generate.');
-    process.exit(1);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const generated = render();
+  if (checkOnly) {
+    if (!fs.existsSync(outputPath) || normalize(fs.readFileSync(outputPath, 'utf8')) !== normalize(generated)) {
+      console.error('THIRD_PARTY_NOTICES.md is missing or stale. Run pnpm notices:generate.');
+      process.exit(1);
+    }
+    console.log('THIRD_PARTY_NOTICES.md matches the locked Windows runtime dependency graphs.');
+  } else {
+    fs.writeFileSync(outputPath, generated);
+    console.log(`Wrote ${path.relative(root, outputPath)}.`);
   }
-  console.log('THIRD_PARTY_NOTICES.md matches the locked Windows runtime dependency graphs.');
-} else {
-  fs.writeFileSync(outputPath, generated);
-  console.log(`Wrote ${path.relative(root, outputPath)}.`);
 }

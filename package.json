@@ -7,7 +7,7 @@
     "build": "turbo build",
     "version:check": "node scripts/check-version.mjs",
     "notices:generate": "node scripts/generate-third-party-notices.mjs",
-    "notices:check": "node scripts/generate-third-party-notices.mjs --check",
+    "notices:check": "node --test scripts/generate-third-party-notices.test.mjs && node scripts/generate-third-party-notices.mjs --check",
     "retrieval:eval": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --test retrieval_eval -- --ignored --nocapture"
   },
   "devDependencies": {
