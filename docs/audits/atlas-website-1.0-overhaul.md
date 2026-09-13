@@ -110,3 +110,11 @@ deployments are likewise Vercel-managed.
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` are no longer used by
 GitHub Actions and may be removed from GitHub Actions repository secrets. No secret
 value was read, changed, or committed.
+
+The first direct deployment exposed an incorrect dashboard framework preset of
+`Other`, which produced a Vercel `404 NOT_FOUND` despite a successful build.
+`website/vercel.json` now deterministically selects `nextjs`; the next direct
+production deployment rendered normally. That live check also corrected the public
+checksum display to the released installer value
+`5B93DFE693D543E68ABBF53307F198EE25B84F581EB979781FECBA7D114388CD` and adds a
+focused render assertion for it.

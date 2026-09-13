@@ -13,6 +13,7 @@ describe("Atlas 1.0 public homepage", () => {
     );
     expect(screen.getByText(/Unsigned NSIS installer/i)).toBeInTheDocument();
     expect(screen.getByText(/Linux is configured but unverified/i)).toBeInTheDocument();
+    expect(screen.getByText(/5B93DFE693D543E68ABBF53307F198EE25B84F581EB979781FECBA7D114388CD/i)).toBeInTheDocument();
   });
 
   it("states the evidence and local/cloud boundaries without retired product claims", () => {
