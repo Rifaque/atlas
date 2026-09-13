@@ -103,7 +103,9 @@ Production deployment is handled directly by Vercel's Git integration for projec
 `atlas-desktop`: repository `Rifaque/atlas`, production branch `main`, and root
 directory `website`. Its install and build commands are `npm ci` and `npm run build`;
 the default Next.js output setting is used and the public site requires no deployment
-environment variables. Any Vercel preview deployments are likewise Vercel-managed.
+environment variables. `website/vercel.json` pins the Next.js framework preset to
+avoid the dashboard's generic `Other` routing behavior. Any Vercel preview
+deployments are likewise Vercel-managed.
 
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` are no longer used by
 GitHub Actions and may be removed from GitHub Actions repository secrets. No secret

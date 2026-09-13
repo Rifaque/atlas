@@ -216,4 +216,5 @@ The historical GitHub Actions Vercel-CLI deployment attempt is superseded. GitHu
 Actions now verifies the standalone Next.js site only. Production deployment is
 performed directly by Vercel's Git integration for `Rifaque/atlas`: project
 `atlas-desktop`, branch `main`, root directory `website`, `npm ci`, then
-`npm run build`. No Vercel credential is required by the Actions workflow.
+`npm run build`. `website/vercel.json` pins the Next.js framework preset for the
+direct deployment. No Vercel credential is required by the Actions workflow.

@@ -22,7 +22,8 @@ Website deployment is handled directly by Vercel's Git integration: project
 `atlas-desktop`, repository `Rifaque/atlas`, production branch `main`, and project
 root `website`. Vercel installs with `npm ci` and builds with `npm run build`; leave
 the Next.js output directory at its default. No environment variables are required
-for the current public site.
+for the current public site. `vercel.json` pins the Next.js framework preset so the
+project does not fall back to Vercel's generic `Other` routing behavior.
 
 GitHub Actions performs verification only. It does not deploy the site and does
 not need `VERCEL_TOKEN`, `VERCEL_ORG_ID`, or `VERCEL_PROJECT_ID`; those Actions
