@@ -129,10 +129,72 @@ pub fn tokenize(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn searchable_text(document: &EvalDocument) -> String {
+/// Which user surface a retrieval serves. Ask and Find share candidate
+/// generation and relevance classification; only their no-evidence fallback
+/// policy differs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchMode {
+    /// Conservative: answer generation may only use classified or bounded
+    /// direct path/structural evidence.
+    Ask,
+    /// Inspection: bounded literal matches remain visible even when the
+    /// answerability classifier rejects the query.
+    Find,
+}
+
+/// Maximum literal matches Find may return when relevance is `None`.
+pub const FIND_LITERAL_FALLBACK_LIMIT: usize = 5;
+
+/// A candidate path expressed relative to the workspace root, with `/`
+/// separators. Folder names above the workspace (for example `Users` or
+/// `Projects`) and the workspace folder name itself are not source evidence.
+/// A path that is unexpectedly outside the root keeps only its file name, so a
+/// root prefix can never leak into matching. An empty root leaves the path
+/// unchanged; evaluation fixtures already store relative paths.
+pub fn workspace_relative_path(file_path: &str, workspace_root: &str) -> String {
+    fn normalize(path: &str) -> String {
+        let path = path.replace('\\', "/");
+        path.strip_prefix("//?/")
+            .map(str::to_string)
+            .unwrap_or(path)
+            .trim_end_matches('/')
+            .to_string()
+    }
+    let path = normalize(file_path);
+    let root = normalize(workspace_root);
+    if root.is_empty() {
+        return path;
+    }
+    if path.len() > root.len()
+        && path.is_char_boundary(root.len())
+        && path[..root.len()].eq_ignore_ascii_case(&root)
+        && path[root.len()..].starts_with('/')
+    {
+        return path[root.len() + 1..].to_string();
+    }
+    path.rsplit('/').next().unwrap_or_default().to_string()
+}
+
+/// A symbol name matches when its normalized tokens occur contiguously in the
+/// query (`authorize_workspace`, `EvidencePanel`) or joined as one query token
+/// (`filetree` for `FileTree`). Raw substrings do not count: a symbol named
+/// `doc` is not a direct match for a query about `docker`.
+fn symbol_name_matches(query_tokens: &[String], name: &str) -> bool {
+    let name_tokens = tokenize(name);
+    if name_tokens.is_empty() {
+        return false;
+    }
+    let joined = name_tokens.concat();
+    query_tokens
+        .windows(name_tokens.len())
+        .any(|window| window == name_tokens.as_slice())
+        || query_tokens.contains(&joined)
+}
+
+fn searchable_text(document: &EvalDocument, relative_path: &str) -> String {
     format!(
         "{} {} {} {}",
-        document.file_path,
+        relative_path,
         document.name.as_deref().unwrap_or_default(),
         document.kind.as_deref().unwrap_or_default(),
         document.text
@@ -140,13 +202,29 @@ fn searchable_text(document: &EvalDocument) -> String {
 }
 
 pub fn bm25_rank(query: &str, documents: &[EvalDocument], limit: usize) -> Vec<RankedCandidate> {
+    bm25_rank_in_workspace(query, documents, limit, "")
+}
+
+/// BM25 over workspace-relative paths, so tokens from the absolute workspace
+/// location cannot count as lexical matches.
+pub fn bm25_rank_in_workspace(
+    query: &str,
+    documents: &[EvalDocument],
+    limit: usize,
+    workspace_root: &str,
+) -> Vec<RankedCandidate> {
     let query_tokens = tokenize(query);
     if query_tokens.is_empty() || documents.is_empty() {
         return Vec::new();
     }
+    let relative_paths: Vec<String> = documents
+        .iter()
+        .map(|document| workspace_relative_path(&document.file_path, workspace_root))
+        .collect();
     let tokenized: Vec<Vec<String>> = documents
         .iter()
-        .map(|document| tokenize(&searchable_text(document)))
+        .zip(&relative_paths)
+        .map(|(document, relative_path)| tokenize(&searchable_text(document, relative_path)))
         .collect();
     let average_length =
         tokenized.iter().map(Vec::len).sum::<usize>() as f32 / tokenized.len() as f32;
@@ -157,9 +235,9 @@ pub fn bm25_rank(query: &str, documents: &[EvalDocument], limit: usize) -> Vec<R
         }
     }
     let n = documents.len() as f32;
-    let query_lower = query.to_lowercase();
     let mut ranked = Vec::new();
-    for (document, tokens) in documents.iter().zip(&tokenized) {
+    for ((document, tokens), relative_path) in documents.iter().zip(&tokenized).zip(&relative_paths)
+    {
         let mut frequencies = HashMap::<&str, usize>::new();
         for token in tokens {
             *frequencies.entry(token.as_str()).or_default() += 1;
@@ -177,10 +255,10 @@ pub fn bm25_rank(query: &str, documents: &[EvalDocument], limit: usize) -> Vec<R
             let norm = 0.25 + 0.75 * tokens.len() as f32 / average_length.max(1.0);
             score += idf * frequency * 2.2 / (frequency + 1.2 * norm);
         }
-        let path_lower = document.file_path.to_lowercase();
+        let path_lower = relative_path.to_lowercase();
         let file_name = path_lower.rsplit(['/', '\\']).next().unwrap_or(&path_lower);
-        let name_lower = document.name.as_deref().unwrap_or_default().to_lowercase();
-        let exact_name_match = !name_lower.is_empty() && query_lower.contains(&name_lower);
+        let exact_name_match =
+            symbol_name_matches(&query_tokens, document.name.as_deref().unwrap_or_default());
         if exact_name_match {
             score += 4.0;
         }
@@ -262,6 +340,10 @@ pub fn reciprocal_rank_fusion(
     ranked
 }
 
+/// Known limitation: only the top fused candidate is judged. A corroborated
+/// lexical match ranked below a single-term semantic/lexical tie can therefore
+/// be classified `None`. Find compensates with its literal fallback; Ask stays
+/// conservative until top-N classification is evaluated separately.
 pub fn classify_relevance(results: &[RankedCandidate]) -> RelevanceLevel {
     let Some(first) = results.first() else {
         return RelevanceLevel::None;
@@ -288,11 +370,13 @@ pub fn classify_relevance(results: &[RankedCandidate]) -> RelevanceLevel {
 
 /// Retain a small set of direct source-discovery matches when the conservative
 /// answerability classifier rejects a short query.  This deliberately requires
-/// a normalized query token in the candidate path or an exact structural match;
-/// semantic similarity or a text-only one-word match cannot activate it.
+/// a normalized query token in the workspace-relative candidate path or an
+/// exact structural match; semantic similarity, a text-only one-word match, or
+/// a folder name above/at the workspace root cannot activate it.
 pub fn short_query_direct_matches(
     query: &str,
     results: &[RankedCandidate],
+    workspace_root: &str,
 ) -> Vec<RankedCandidate> {
     let tokens = tokenize(query);
     if tokens.is_empty() || tokens.len() > 2 || tokens.iter().any(|token| token.len() < 3) {
@@ -302,13 +386,126 @@ pub fn short_query_direct_matches(
         .iter()
         .filter(|candidate| {
             candidate.exact_structural_match
-                || tokenize(&candidate.file_path)
-                    .iter()
-                    .any(|path_token| tokens.iter().any(|token| token == path_token))
+                || tokenize(&workspace_relative_path(
+                    &candidate.file_path,
+                    workspace_root,
+                ))
+                .iter()
+                .any(|path_token| tokens.iter().any(|token| token == path_token))
         })
         .take(5)
         .cloned()
         .collect()
+}
+
+/// Why a candidate was admitted by Find's literal fallback, strongest first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiteralMatchKind {
+    /// A whole symbol name or file name matched the query.
+    Structural,
+    /// A query token occurs in the file name.
+    Filename,
+    /// A query token occurs in a workspace-relative directory name.
+    Path,
+    /// A query token occurs only in the chunk text.
+    Text,
+}
+
+fn literal_match(
+    query_tokens: &[String],
+    candidate: &RankedCandidate,
+    workspace_root: &str,
+) -> Option<(LiteralMatchKind, usize)> {
+    let relative_path =
+        workspace_relative_path(&candidate.file_path, workspace_root).to_lowercase();
+    let (directory, file_name) = relative_path
+        .rsplit_once('/')
+        .unwrap_or(("", relative_path.as_str()));
+    let name_tokens = tokenize(candidate.name.as_deref().unwrap_or_default());
+    let file_tokens = tokenize(file_name);
+    let directory_tokens = tokenize(directory);
+    let text_tokens: HashSet<String> = tokenize(&candidate.text).into_iter().collect();
+
+    let structural =
+        symbol_name_matches(query_tokens, candidate.name.as_deref().unwrap_or_default())
+            || query_tokens.iter().any(|token| {
+                file_name == token.as_str() || file_name.starts_with(&format!("{token}."))
+            });
+    let distinct = query_tokens
+        .iter()
+        .filter(|token| {
+            name_tokens.contains(token)
+                || file_tokens.contains(token)
+                || directory_tokens.contains(token)
+                || text_tokens.contains(*token)
+        })
+        .count();
+    if !structural && distinct == 0 {
+        return None;
+    }
+    let kind = if structural {
+        LiteralMatchKind::Structural
+    } else if query_tokens.iter().any(|token| file_tokens.contains(token)) {
+        LiteralMatchKind::Filename
+    } else if query_tokens
+        .iter()
+        .any(|token| directory_tokens.contains(token))
+    {
+        LiteralMatchKind::Path
+    } else {
+        LiteralMatchKind::Text
+    };
+    Some((kind, distinct))
+}
+
+/// Find-only literal fallback used when relevance classification is `None`.
+/// Only lexical candidates are considered, so semantic similarity alone can
+/// never surface a result. Matches are exact normalized tokens (no stemming)
+/// against the symbol name, file name, workspace-relative directories, and
+/// chunk text, ranked by match kind, then distinct matched query terms, then
+/// BM25 score. The result is bounded and carries no relevance strength.
+pub fn find_literal_matches(
+    query: &str,
+    lexical: &[RankedCandidate],
+    workspace_root: &str,
+    limit: usize,
+) -> Vec<(RankedCandidate, LiteralMatchKind)> {
+    let query_tokens = tokenize(query);
+    if query_tokens.is_empty() || limit == 0 {
+        return Vec::new();
+    }
+    let mut matches: Vec<_> = lexical
+        .iter()
+        .filter_map(|candidate| {
+            literal_match(&query_tokens, candidate, workspace_root)
+                .map(|(kind, distinct)| (candidate, kind, distinct))
+        })
+        .collect();
+    matches.sort_by(|(a, a_kind, a_distinct), (b, b_kind, b_distinct)| {
+        a_kind
+            .cmp(b_kind)
+            .then_with(|| b_distinct.cmp(a_distinct))
+            .then_with(|| b.lexical_score.total_cmp(&a.lexical_score))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    let kinds: HashMap<String, LiteralMatchKind> = matches
+        .iter()
+        .map(|(candidate, kind, _)| (candidate.id.clone(), *kind))
+        .collect();
+    suppress_overlap(
+        matches
+            .into_iter()
+            .map(|(candidate, _, _)| candidate.clone())
+            .collect(),
+        limit,
+    )
+    .into_iter()
+    .map(|candidate| {
+        let kind = kinds[&candidate.id];
+        (candidate, kind)
+    })
+    .collect()
 }
 
 pub fn suppress_overlap(candidates: Vec<RankedCandidate>, limit: usize) -> Vec<RankedCandidate> {
@@ -559,28 +756,283 @@ mod tests {
         assert_eq!(classify_relevance(&[corroborated]), RelevanceLevel::Strong);
     }
 
-    #[test]
-    fn short_direct_workspace_terms_have_bounded_weak_fallback() {
-        let candidates = vec![RankedCandidate {
-            id: "portfolio".into(),
-            file_path: r"\\?\C:\Projects\rifaque-portfolio\src\App.tsx".into(),
+    const ATLAS_ROOT: &str = r"\\?\C:\Users\rifaq\Documents\Projects\atlas";
+
+    fn candidate(id: &str, path: &str, name: Option<&str>, text: &str) -> RankedCandidate {
+        RankedCandidate {
+            id: id.into(),
+            file_path: path.into(),
             line_start: 1,
             line_end: 4,
-            text: "export default App".into(),
+            text: text.into(),
             kind: None,
-            name: None,
+            name: name.map(str::to_string),
             semantic_distance: Some(0.8),
-            lexical_score: 0.01,
+            lexical_score: 1.0,
             lexical_match_count: 1,
             exact_structural_match: false,
             fused_score: 0.02,
+        }
+    }
+
+    #[test]
+    fn workspace_relative_path_strips_only_the_workspace_root() {
+        assert_eq!(
+            workspace_relative_path(
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src\App.tsx"),
+                ATLAS_ROOT
+            ),
+            "apps/desktop/src/App.tsx"
+        );
+        // Case and verbatim-prefix differences in the same Windows root.
+        assert_eq!(
+            workspace_relative_path(
+                r"\\?\c:\users\rifaq\documents\projects\ATLAS\src\lib.rs",
+                r"C:\Users\rifaq\Documents\Projects\atlas\"
+            ),
+            "src/lib.rs"
+        );
+        // A sibling folder sharing the root as a string prefix is not inside it.
+        assert_eq!(
+            workspace_relative_path(
+                r"\\?\C:\Projects\atlas-old\src\lib.rs",
+                r"\\?\C:\Projects\atlas"
+            ),
+            "lib.rs"
+        );
+        assert_eq!(
+            workspace_relative_path("src/workspace.rs", ""),
+            "src/workspace.rs"
+        );
+    }
+
+    #[test]
+    fn short_direct_workspace_terms_have_bounded_weak_fallback() {
+        // 1.0.1 asserted "portfolio" matched this candidate, but the token only
+        // occurred in the workspace root folder `rifaque-portfolio`.
+        let root = r"\\?\C:\Projects\rifaque-portfolio";
+        let candidates = vec![RankedCandidate {
+            lexical_score: 0.01,
+            ..candidate(
+                "app",
+                r"\\?\C:\Projects\rifaque-portfolio\src\App.tsx",
+                None,
+                "export default App",
+            )
         }];
         assert_eq!(classify_relevance(&candidates), RelevanceLevel::None);
+        assert!(short_query_direct_matches("portfolio", &candidates, root).is_empty());
+        // A token from the workspace-relative path is still direct evidence.
         assert_eq!(
-            short_query_direct_matches("portfolio", &candidates).len(),
+            short_query_direct_matches("src", &candidates, root).len(),
             1
         );
-        assert!(short_query_direct_matches("kubernetes", &candidates).is_empty());
+        assert_eq!(
+            short_query_direct_matches("app", &candidates, root).len(),
+            1
+        );
+        assert!(short_query_direct_matches("kubernetes", &candidates, root).is_empty());
+    }
+
+    #[test]
+    fn absolute_path_prefix_and_workspace_name_cannot_trigger_direct_fallback() {
+        let candidates = vec![
+            candidate(
+                "tree",
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src\components\FileTree.tsx"),
+                None,
+                "render nodes",
+            ),
+            candidate(
+                "notices",
+                &format!(r"{ATLAS_ROOT}\THIRD_PARTY_NOTICES.md"),
+                None,
+                "license text",
+            ),
+        ];
+        for root_token in ["users", "rifaq", "documents", "projects", "atlas"] {
+            assert!(
+                short_query_direct_matches(root_token, &candidates, ATLAS_ROOT).is_empty(),
+                "{root_token} must not match through the absolute workspace prefix"
+            );
+        }
+    }
+
+    #[test]
+    fn relative_path_filename_and_symbol_matches_still_trigger_direct_fallback() {
+        // Structural flags are query-dependent, so derive candidates from BM25
+        // exactly as quality_search does.
+        let docs = vec![
+            doc(
+                "tree",
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src\components\FileTree.tsx"),
+                "FileTree",
+                "render nodes",
+                1,
+                4,
+            ),
+            doc(
+                "credentials",
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src-tauri\src\credentials.rs"),
+                "store_secret",
+                "keyring entry",
+                1,
+                4,
+            ),
+            doc(
+                "guard",
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src-tauri\src\commands.rs"),
+                "require_workspace",
+                "fn guard()",
+                1,
+                4,
+            ),
+        ];
+        let ids = |query: &str| -> Vec<String> {
+            let candidates = bm25_rank_in_workspace(query, &docs, 10, ATLAS_ROOT);
+            short_query_direct_matches(query, &candidates, ATLAS_ROOT)
+                .into_iter()
+                .map(|item| item.id)
+                .collect()
+        };
+        assert_eq!(ids("components"), ["tree"]);
+        assert_eq!(ids("credentials"), ["credentials"]);
+        assert_eq!(ids("require_workspace"), ["guard"]);
+    }
+
+    #[test]
+    fn symbol_substring_is_not_an_exact_structural_match() {
+        let docs = vec![
+            doc(
+                "helper",
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src-tauri\src\retrieval_quality.rs"),
+                "doc",
+                "fn doc(id: &str) -> EvalDocument",
+                1,
+                4,
+            ),
+            doc(
+                "tree",
+                &format!(r"{ATLAS_ROOT}\apps\desktop\src\components\FileTree.tsx"),
+                "FileTree",
+                "export function FileTree()",
+                1,
+                4,
+            ),
+        ];
+        // `doc` inside `docker` previously counted as an exact symbol match and
+        // let Ask's direct fallback answer from an unrelated test helper.
+        let docker = bm25_rank_in_workspace("users docker", &docs, 5, ATLAS_ROOT);
+        assert!(docker.iter().all(|item| !item.exact_structural_match));
+        assert!(short_query_direct_matches("users docker", &docker, ATLAS_ROOT).is_empty());
+        // Whole symbols still match, including a joined camel-case spelling.
+        for query in ["doc", "FileTree", "filetree", "Show the FileTree component"] {
+            let ranked = bm25_rank_in_workspace(query, &docs, 5, ATLAS_ROOT);
+            assert!(
+                ranked.iter().any(|item| item.exact_structural_match),
+                "{query} should remain a structural symbol match"
+            );
+        }
+    }
+
+    #[test]
+    fn bm25_ignores_absolute_workspace_prefix_tokens() {
+        let root = r"\\?\C:\Users\rifaq\Documents\Projects\atlas";
+        let docs = vec![doc(
+            "tree",
+            &format!(r"{root}\apps\desktop\src\FileTree.tsx"),
+            "FileTree",
+            "Kubernetes appears in this text",
+            1,
+            4,
+        )];
+        assert!(bm25_rank_in_workspace("projects", &docs, 5, root).is_empty());
+        assert!(bm25_rank_in_workspace("atlas", &docs, 5, root).is_empty());
+        // Without the root prefix counted, a root token cannot corroborate a
+        // single text term into a two-term lexical match.
+        let ranked = bm25_rank_in_workspace("kubernetes projects", &docs, 5, root);
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].lexical_match_count, 1);
+        assert_eq!(bm25_rank_in_workspace("desktop", &docs, 5, root).len(), 1);
+    }
+
+    #[test]
+    fn find_literal_fallback_ranks_structural_filename_path_then_text() {
+        let candidates = vec![
+            candidate(
+                "text",
+                &format!(r"{ATLAS_ROOT}\docs\notes.md"),
+                None,
+                "workspace authorization is enforced",
+            ),
+            candidate(
+                "path",
+                &format!(r"{ATLAS_ROOT}\src\workspace\mod.rs"),
+                None,
+                "mod entries",
+            ),
+            candidate(
+                "file",
+                &format!(r"{ATLAS_ROOT}\src\workspace_store.rs"),
+                None,
+                "store",
+            ),
+            candidate(
+                "symbol",
+                &format!(r"{ATLAS_ROOT}\src\commands.rs"),
+                Some("workspace"),
+                "fn workspace()",
+            ),
+            candidate(
+                "root-only",
+                &format!(r"{ATLAS_ROOT}\src\lib.rs"),
+                None,
+                "unrelated",
+            ),
+        ];
+        let matches = find_literal_matches("workspace", &candidates, ATLAS_ROOT, 5);
+        let ranked: Vec<_> = matches
+            .iter()
+            .map(|(item, kind)| (item.id.as_str(), *kind))
+            .collect();
+        assert_eq!(
+            ranked,
+            [
+                ("symbol", LiteralMatchKind::Structural),
+                ("file", LiteralMatchKind::Filename),
+                ("path", LiteralMatchKind::Path),
+                ("text", LiteralMatchKind::Text),
+            ]
+        );
+        for root_token in ["users", "rifaq", "documents", "projects", "atlas"] {
+            assert!(find_literal_matches(root_token, &candidates, ATLAS_ROOT, 5).is_empty());
+        }
+    }
+
+    #[test]
+    fn find_literal_fallback_is_bounded_exact_and_unstemmed() {
+        let candidates: Vec<_> = (0..8)
+            .map(|index| {
+                candidate(
+                    &format!("hit-{index}"),
+                    &format!(r"{ATLAS_ROOT}\docs\page{index}.md"),
+                    None,
+                    &format!("authentication note number {index}"),
+                )
+            })
+            .collect();
+        assert_eq!(
+            find_literal_matches(
+                "authentication",
+                &candidates,
+                ATLAS_ROOT,
+                FIND_LITERAL_FALLBACK_LIMIT
+            )
+            .len(),
+            FIND_LITERAL_FALLBACK_LIMIT
+        );
+        // Literal means exact normalized tokens: no prefix or stem expansion.
+        assert!(find_literal_matches("auth", &candidates, ATLAS_ROOT, 5).is_empty());
     }
 
     #[test]

@@ -146,7 +146,7 @@ export function SettingsModal({ settings, embeddingModel, indexHealth, credentia
                                 <p className="field-help">Included in local prompts and in inspected OpenRouter payloads when cloud generation is selected.</p>
                             </div>
                             <InlineAlert title="Automatic updates unavailable" tone="info">Update signing is not configured in this build. Atlas will not claim or install automatic updates.</InlineAlert>
-                            <div className="version-line"><Info size={14} /> Atlas 1.0.2</div>
+                            <div className="version-line"><Info size={14} /> Atlas 1.0.3</div>
                         </section>
                     )}
                 </div>

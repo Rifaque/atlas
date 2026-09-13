@@ -558,10 +558,13 @@ impl AtlasVectorStore {
         query_text: &str,
         n_results: usize,
         workspace_id: &str,
+        mode: crate::retrieval_quality::SearchMode,
     ) -> Result<serde_json::Value, String> {
         use crate::retrieval_quality::{
-            bm25_rank, classify_relevance, reciprocal_rank_fusion, short_query_direct_matches,
-            suppress_overlap, EvalDocument, RankedCandidate, RelevanceLevel, CANDIDATE_LIMIT,
+            bm25_rank_in_workspace, classify_relevance, find_literal_matches,
+            reciprocal_rank_fusion, short_query_direct_matches, suppress_overlap, EvalDocument,
+            RankedCandidate, RelevanceLevel, SearchMode, CANDIDATE_LIMIT,
+            FIND_LITERAL_FALLBACK_LIMIT,
         };
 
         let semantic_json = self
@@ -665,49 +668,88 @@ impl AtlasVectorStore {
                 })
             })
             .collect();
-        let lexical = bm25_rank(query_text, &lexical_documents, CANDIDATE_LIMIT);
+        let lexical = bm25_rank_in_workspace(
+            query_text,
+            &lexical_documents,
+            CANDIDATE_LIMIT,
+            workspace_id,
+        );
         let fused = suppress_overlap(
             reciprocal_rank_fusion(&semantic, &lexical, CANDIDATE_LIMIT),
             n_results,
         );
         let relevance = classify_relevance(&fused);
-        let fallback = if relevance == RelevanceLevel::None {
-            short_query_direct_matches(query_text, &fused)
-        } else {
-            Vec::new()
-        };
-        let (relevance, selected, direct_fallback) = if fallback.is_empty() {
-            (relevance, fused, false)
-        } else {
-            // Find and Ask share this path.  The explicit flag lets Ask admit
-            // only this bounded, path-backed evidence without relaxing its
-            // normal treatment of every Weak retrieval result.
-            (RelevanceLevel::Weak, fallback, true)
-        };
-        if relevance == RelevanceLevel::None {
-            return Ok(Self::empty_search_result());
+        if relevance != RelevanceLevel::None {
+            return Ok(Self::search_result(&fused, relevance, false, None));
         }
 
-        Ok(serde_json::json!({
+        match mode {
+            SearchMode::Ask => {
+                // The explicit flag lets Ask admit only this bounded,
+                // path/structure-backed evidence without relaxing its normal
+                // treatment of every Weak or text-only retrieval result.
+                let fallback = short_query_direct_matches(query_text, &fused, workspace_id);
+                if fallback.is_empty() {
+                    return Ok(Self::empty_search_result());
+                }
+                Ok(Self::search_result(
+                    &fallback,
+                    RelevanceLevel::Weak,
+                    true,
+                    None,
+                ))
+            }
+            SearchMode::Find => {
+                // Find is inspection, not answer generation: literal matches
+                // stay visible, bounded, and explicitly unclassified.
+                let literal = find_literal_matches(
+                    query_text,
+                    &lexical,
+                    workspace_id,
+                    FIND_LITERAL_FALLBACK_LIMIT,
+                );
+                if literal.is_empty() {
+                    return Ok(Self::empty_search_result());
+                }
+                let (candidates, kinds): (Vec<_>, Vec<_>) = literal.into_iter().unzip();
+                Ok(Self::search_result(
+                    &candidates,
+                    RelevanceLevel::None,
+                    false,
+                    Some(&kinds),
+                ))
+            }
+        }
+    }
+
+    fn search_result(
+        selected: &[crate::retrieval_quality::RankedCandidate],
+        relevance: crate::retrieval_quality::RelevanceLevel,
+        direct_fallback: bool,
+        literal_kinds: Option<&[crate::retrieval_quality::LiteralMatchKind]>,
+    ) -> serde_json::Value {
+        serde_json::json!({
             "ids": [selected.iter().map(|item| item.id.clone()).collect::<Vec<_>>()],
             "distances": [selected.iter().map(|item| item.semantic_distance.unwrap_or(f32::MAX)).collect::<Vec<_>>()],
             "documents": [selected.iter().map(|item| item.text.clone()).collect::<Vec<_>>()],
-            "metadatas": [selected.iter().map(|item| serde_json::json!({
+            "metadatas": [selected.iter().enumerate().map(|(index, item)| serde_json::json!({
                 "filePath": item.file_path,
                 "lineRangeStart": item.line_start,
                 "lineRangeEnd": item.line_end,
                 "kind": item.kind,
                 "name": item.name,
+                "literalMatch": literal_kinds.and_then(|kinds| kinds.get(index)),
             })).collect::<Vec<_>>()],
             "relevance": relevance,
             "directFallback": direct_fallback,
-        }))
+            "literalFallback": literal_kinds.is_some(),
+        })
     }
 
     fn empty_search_result() -> serde_json::Value {
         serde_json::json!({
             "ids": [[]], "distances": [[]], "documents": [[]], "metadatas": [[]],
-            "relevance": "none"
+            "relevance": "none", "directFallback": false, "literalFallback": false
         })
     }
 
@@ -774,6 +816,7 @@ impl AtlasVectorStore {
 #[cfg(test)]
 mod tests {
     use super::{AtlasVectorStore, StoredChunkMetadata, TablePreparation};
+    use crate::retrieval_quality::SearchMode;
 
     fn metadata(path: &str, name: &str) -> StoredChunkMetadata {
         StoredChunkMetadata {
@@ -839,12 +882,24 @@ mod tests {
             .await
             .unwrap();
         let first = store
-            .quality_search(vec![1.0, 0.0], "authorize_workspace", 5, &workspace)
+            .quality_search(
+                vec![1.0, 0.0],
+                "authorize_workspace",
+                5,
+                &workspace,
+                SearchMode::Ask,
+            )
             .await
             .unwrap();
         assert_eq!(first["ids"][0][0], "old");
         let unrelated = store
-            .quality_search(vec![0.0, 1.0], "kubernetes scheduling", 5, &workspace)
+            .quality_search(
+                vec![0.0, 1.0],
+                "kubernetes scheduling",
+                5,
+                &workspace,
+                SearchMode::Ask,
+            )
             .await
             .unwrap();
         assert!(unrelated["ids"][0].as_array().unwrap().is_empty());
@@ -854,6 +909,7 @@ mod tests {
                 "How does Kubernetes schedule pods across nodes?",
                 5,
                 &workspace,
+                SearchMode::Ask,
             )
             .await
             .unwrap();
@@ -861,6 +917,23 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+        // Find may show the literal `nodes` text that genuinely exists, but it
+        // stays unclassified and is never offered to Ask as grounding.
+        let literal_collision = store
+            .quality_search(
+                vec![0.0, 1.0],
+                "How does Kubernetes schedule pods across nodes?",
+                5,
+                &workspace,
+                SearchMode::Find,
+            )
+            .await
+            .unwrap();
+        assert_eq!(literal_collision["relevance"], "none");
+        assert_eq!(literal_collision["directFallback"], false);
+        assert_eq!(literal_collision["literalFallback"], true);
+        assert_eq!(literal_collision["ids"][0][0], "generic-tree");
+        assert_eq!(literal_collision["metadatas"][0][0]["literalMatch"], "text");
 
         store.delete_by_filepath(2, old_path).await.unwrap();
         let new_path = r"\\?\C:\fixture\src\authorization.rs";
@@ -875,7 +948,13 @@ mod tests {
             .await
             .unwrap();
         let renamed = store
-            .quality_search(vec![1.0, 0.0], "authorize_workspace", 5, &workspace)
+            .quality_search(
+                vec![1.0, 0.0],
+                "authorize_workspace",
+                5,
+                &workspace,
+                SearchMode::Ask,
+            )
             .await
             .unwrap();
         assert_eq!(renamed["ids"][0][0], "new");
@@ -926,27 +1005,251 @@ mod tests {
             .unwrap();
         assert!(plain["ids"][0].as_array().unwrap().is_empty());
 
-        // Ask and Find share quality_search.  An exact filename query has
-        // structural lexical evidence and therefore remains available after
-        // relevance classification as well as in the semantic candidate set.
-        let results = store
-            .quality_search(vec![1.0, 0.0], "package.json", 10, canonical_workspace)
+        // Ask and Find share candidate generation.  An exact filename query
+        // has structural lexical evidence and therefore remains available
+        // after relevance classification in both modes.
+        for mode in [SearchMode::Ask, SearchMode::Find] {
+            let results = store
+                .quality_search(
+                    vec![1.0, 0.0],
+                    "package.json",
+                    10,
+                    canonical_workspace,
+                    mode,
+                )
+                .await
+                .unwrap();
+            assert_eq!(results["relevance"], "strong");
+            assert_eq!(results["ids"][0][0], "package");
+        }
+
+        // 1.0.1 expected Ask to accept "portfolio" as path-backed evidence,
+        // but the token only occurs in the workspace root folder name and in
+        // chunk text.  Text-only evidence must not bypass Ask grounding.
+        let ask_short_query = store
+            .quality_search(
+                vec![1.0, 0.0],
+                "portfolio",
+                10,
+                canonical_workspace,
+                SearchMode::Ask,
+            )
             .await
             .unwrap();
-        assert_eq!(results["relevance"], "strong");
-        assert_eq!(results["ids"][0][0], "package");
+        assert_eq!(ask_short_query["relevance"], "none");
+        assert_eq!(ask_short_query["directFallback"], false);
+        assert!(ask_short_query["ids"][0].as_array().unwrap().is_empty());
 
-        // One direct workspace token is intentionally not enough for the
-        // general answerability classifier, but it is enough to expose this
-        // bounded, path-backed source to Find and Ask.
-        let short_query = store
-            .quality_search(vec![1.0, 0.0], "portfolio", 10, canonical_workspace)
+        // Find still shows the genuine literal text match, unclassified.
+        let find_short_query = store
+            .quality_search(
+                vec![1.0, 0.0],
+                "portfolio",
+                10,
+                canonical_workspace,
+                SearchMode::Find,
+            )
             .await
             .unwrap();
-        assert_eq!(short_query["relevance"], "weak");
-        assert_eq!(short_query["directFallback"], true);
-        assert_eq!(short_query["ids"][0][0], "package");
+        assert_eq!(find_short_query["relevance"], "none");
+        assert_eq!(find_short_query["literalFallback"], true);
+        assert_eq!(find_short_query["ids"][0][0], "package");
+        assert_eq!(find_short_query["metadatas"][0][0]["literalMatch"], "text");
 
+        // A non-canonical spelling never contributes Find literal matches.
+        let other_scope = store
+            .quality_search(
+                vec![1.0, 0.0],
+                "portfolio",
+                10,
+                plain_workspace,
+                SearchMode::Find,
+            )
+            .await
+            .unwrap();
+        assert!(other_scope["ids"][0].as_array().unwrap().is_empty());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Rows are `(id, workspace-relative path, symbol name, text, vector)`.
+    async fn store_workspace_rows(
+        store: &AtlasVectorStore,
+        workspace: &str,
+        rows: &[(&str, &str, &str, &str, Vec<f32>)],
+    ) {
+        store
+            .store_chunks(
+                workspace.into(),
+                rows.iter().map(|row| row.0.to_string()).collect(),
+                rows.iter().map(|row| row.4.clone()).collect(),
+                rows.iter()
+                    .map(|row| metadata(&format!(r"{workspace}\{}", row.1), row.2))
+                    .collect(),
+                rows.iter().map(|row| row.3.to_string()).collect(),
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn workspace_root_tokens_are_not_ask_or_find_evidence() {
+        let root = std::env::temp_dir().join(format!("atlas-root-tokens-{}", uuid::Uuid::new_v4()));
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        let workspace = r"\\?\C:\Users\rifaq\Documents\Projects\atlas";
+        store_workspace_rows(
+            &store,
+            workspace,
+            &[
+                (
+                    "tree",
+                    r"apps\desktop\src\components\FileTree.tsx",
+                    "FileTree",
+                    "render nodes for the file browser",
+                    vec![1.0, 0.0],
+                ),
+                (
+                    "notices",
+                    "THIRD_PARTY_NOTICES.md",
+                    "notices",
+                    "license text for dependencies",
+                    vec![0.0, 1.0],
+                ),
+            ],
+        )
+        .await;
+        for query in ["users", "rifaq", "documents", "projects", "atlas"] {
+            for mode in [SearchMode::Ask, SearchMode::Find] {
+                let results = store
+                    .quality_search(vec![1.0, 0.0], query, 10, workspace, mode)
+                    .await
+                    .unwrap();
+                assert!(
+                    results["ids"][0].as_array().unwrap().is_empty(),
+                    "{query} in {mode:?} matched through the absolute workspace prefix"
+                );
+            }
+        }
+        // A genuine workspace-relative path token remains direct evidence.
+        let relative = store
+            .quality_search(vec![0.0, 1.0], "components", 10, workspace, SearchMode::Ask)
+            .await
+            .unwrap();
+        assert_eq!(relative["directFallback"], true);
+        assert_eq!(relative["ids"][0][0], "tree");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn find_literal_fallback_is_bounded_while_ask_stays_grounded() {
+        let root =
+            std::env::temp_dir().join(format!("atlas-find-literal-{}", uuid::Uuid::new_v4()));
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        let workspace = r"\\?\C:\fixture";
+        let rows: Vec<(String, String, String)> = (0..8)
+            .map(|index| {
+                (
+                    format!("doc-{index}"),
+                    format!(r"docs\page{index}.md"),
+                    format!("authentication appears in example prompt {index}"),
+                )
+            })
+            .collect();
+        let borrowed: Vec<_> = rows
+            .iter()
+            .map(|(id, path, text)| {
+                (
+                    id.as_str(),
+                    path.as_str(),
+                    "section",
+                    text.as_str(),
+                    vec![0.0, 1.0],
+                )
+            })
+            .collect();
+        store_workspace_rows(&store, workspace, &borrowed).await;
+
+        let find = store
+            .quality_search(
+                vec![1.0, 0.0],
+                "authentication",
+                10,
+                workspace,
+                SearchMode::Find,
+            )
+            .await
+            .unwrap();
+        assert_eq!(find["relevance"], "none");
+        assert_eq!(find["literalFallback"], true);
+        assert_eq!(
+            crate::retrieval::evidence_from_store(&find, workspace).len(),
+            crate::retrieval_quality::FIND_LITERAL_FALLBACK_LIMIT
+        );
+
+        let ask = store
+            .quality_search(
+                vec![1.0, 0.0],
+                "authentication",
+                20,
+                workspace,
+                SearchMode::Ask,
+            )
+            .await
+            .unwrap();
+        assert_eq!(ask["relevance"], "none");
+        assert_eq!(ask["directFallback"], false);
+        assert!(ask["ids"][0].as_array().unwrap().is_empty());
+
+        // Literal means exact normalized tokens: `auth` is not `authentication`.
+        let prefix = store
+            .quality_search(vec![1.0, 0.0], "auth", 10, workspace, SearchMode::Find)
+            .await
+            .unwrap();
+        assert!(prefix["ids"][0].as_array().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn workspace_authorization_example_returns_implementation_evidence() {
+        let root =
+            std::env::temp_dir().join(format!("atlas-authorization-{}", uuid::Uuid::new_v4()));
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        let workspace = r"\\?\C:\fixture";
+        store_workspace_rows(
+            &store,
+            workspace,
+            &[
+                (
+                    "guard",
+                    r"src\commands.rs",
+                    "require_workspace",
+                    "Workspace authorization is enforced by resolving the canonical workspace and rejecting unauthorized roots.",
+                    vec![1.0, 0.0],
+                ),
+                (
+                    "theme",
+                    r"src\theme.ts",
+                    "applyTheme",
+                    "apply the selected colour theme",
+                    vec![0.0, 1.0],
+                ),
+            ],
+        )
+        .await;
+        let ask = store
+            .quality_search(
+                vec![1.0, 0.0],
+                "Where is workspace authorization enforced?",
+                20,
+                workspace,
+                SearchMode::Ask,
+            )
+            .await
+            .unwrap();
+        assert_eq!(ask["relevance"], "strong");
+        assert_eq!(ask["ids"][0][0], "guard");
+        let evidence = crate::retrieval::evidence_from_store(&ask, workspace);
+        assert_eq!(evidence[0].file_path, r"\\?\C:\fixture\src\commands.rs");
         let _ = std::fs::remove_dir_all(root);
     }
 

@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Atlas",
   "mainBinaryName": "app",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "identifier": "com.atlas.desktop",
   "build": {
     "frontendDist": "../dist",

@@ -1,6 +1,6 @@
 use app_lib::retrieval_quality::{
-    bm25_rank, classify_relevance, reciprocal_rank_fusion, suppress_overlap, EvalCorpus,
-    RankedCandidate, RelevanceLevel,
+    bm25_rank, classify_relevance, reciprocal_rank_fusion, short_query_direct_matches,
+    suppress_overlap, EvalCorpus, RankedCandidate, RelevanceLevel,
 };
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -246,7 +246,10 @@ async fn retrieval_evaluation() -> Result<(), Box<dyn std::error::Error>> {
             .collect();
         let started = std::time::Instant::now();
         let hybrid = suppress_overlap(reciprocal_rank_fusion(&semantic, &lexical, 40), 10);
-        let rejected = classify_relevance(&hybrid) == RelevanceLevel::None;
+        // Mirror Ask: a `None` classification is rejected unless the bounded
+        // direct path/structural fallback applies. Fixture paths are relative.
+        let rejected = classify_relevance(&hybrid) == RelevanceLevel::None
+            && short_query_direct_matches(&effective, &hybrid, "").is_empty();
         fusion_ms += started.elapsed().as_secs_f64() * 1000.0;
         eprintln!(
             "{} top={} distance={:.4} lexical={:.4} rejected={}",
