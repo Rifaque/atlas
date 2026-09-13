@@ -711,5 +711,5 @@ verification only, while Vercel deploys directly from its Git integration for
 `Rifaque/atlas` project `atlas-desktop`, branch `main`, with `website` as the
 project root. Its independent install/build commands are `npm ci` and
 `npm run build`; `website/vercel.json` pins Next.js rather than Vercel's generic
-`Other` framework preset. The Actions workflow no longer reads `VERCEL_TOKEN`,
-`VERCEL_ORG_ID`, or `VERCEL_PROJECT_ID`; those Actions secrets may be removed.
+`Other` framework preset. The Actions workflow no longer reads Actions-side Vercel
+deployment secrets; those secrets may be removed.

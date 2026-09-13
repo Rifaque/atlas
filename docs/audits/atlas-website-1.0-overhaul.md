@@ -107,9 +107,8 @@ environment variables. `website/vercel.json` pins the Next.js framework preset t
 avoid the dashboard's generic `Other` routing behavior. Any Vercel preview
 deployments are likewise Vercel-managed.
 
-`VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` are no longer used by
-GitHub Actions and may be removed from GitHub Actions repository secrets. No secret
-value was read, changed, or committed.
+Actions-side Vercel deployment secrets are no longer used and may be removed from
+GitHub repository settings. No secret value was read, changed, or committed.
 
 The first direct deployment exposed an incorrect dashboard framework preset of
 `Other`, which produced a Vercel `404 NOT_FOUND` despite a successful build.

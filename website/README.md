@@ -26,9 +26,9 @@ for the current public site. `vercel.json` pins the Next.js framework preset so 
 project does not fall back to Vercel's generic `Other` routing behavior.
 
 GitHub Actions performs verification only. It does not deploy the site and does
-not need `VERCEL_TOKEN`, `VERCEL_ORG_ID`, or `VERCEL_PROJECT_ID`; those Actions
-secrets can be removed through GitHub repository settings. Pull requests may receive
-preview deployments from Vercel's Git integration when that Vercel setting is enabled.
+not need Actions-side Vercel deployment secrets; those secrets can be removed through
+GitHub repository settings. Pull requests may receive preview deployments from
+Vercel's Git integration when that Vercel setting is enabled.
 
 The production site reads public release metadata from GitHub. Do not place GitHub
 personal access tokens, OpenRouter credentials, or any other secret in this

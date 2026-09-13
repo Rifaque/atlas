@@ -60,9 +60,9 @@ the Next.js framework preset for direct deployments.
   (install, lint, typecheck, tests, build, and accessibility smoke test).
 - [ ] Verify Vercel detects the `main` push and deploys `website/` directly; Vercel
   may create previews for pull requests according to its Git-integration settings.
-- [ ] Keep `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` out of source;
-  GitHub Actions no longer uses them, so the corresponding Actions secrets may be
-  removed from repository settings.
+- [ ] Keep deployment credentials out of source; GitHub Actions no longer uses
+  Actions-side Vercel deployment secrets, so they may be removed from repository
+  settings.
 
 ## Subsequent owner decision on Windows signing (2026-09-07)
 
