@@ -35,7 +35,11 @@ the same mark without the former boxed treatment.
 - Installer: `release-candidates/Atlas_1.0.2_x64-setup.exe`
 - SHA-256: `9F3E67551230A1840EBA7F8E69131169A25D942F9DD7EDAB574BE32E1F354975`
 - Checksum manifest: `release-candidates/Atlas_1.0.2_SHA256SUMS.txt`
-- GitHub Release: pending publication at
-  `https://github.com/Rifaque/atlas/releases/tag/v1.0.2`
-- Website: direct Vercel deployment from `main`; pending post-publication
-  verification.
+- GitHub Release: published at
+  `https://github.com/Rifaque/atlas/releases/tag/v1.0.2`. GitHub's recorded
+  installer digest and an independent public download both matched the checksum
+  above.
+- Website: direct Vercel deployment from `main` is live at
+  `https://atlas.hubzero.in/`. It serves the structural mark, Atlas 1.0.2
+  release link and installer filename, matching checksum, and unsigned Windows
+  disclosure.
