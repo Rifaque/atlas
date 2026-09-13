@@ -91,3 +91,20 @@ There are no website build, copy-accuracy, asset, accessibility, or download-lin
 This website-only work updates the root page, styling, metadata, content constants, website package metadata/lockfile, test coverage, and website README; deletes obsolete site components/assets/utilities; and adds this audit report. It is separate from the pre-existing desktop, retrieval, release-candidate, audit, and cleanup work already present in the working tree.
 
 No commit, push, tag, deployment, release, or publication was performed.
+
+## Q. Subsequent Deployment Simplification (2026-09-13)
+
+GitHub Actions now verifies the website only. The Actions workflow retains its
+fresh `npm ci`, lint, typecheck, unit-test, production-build, and accessibility
+smoke-test steps for website and workflow changes on pull requests and `main`.
+The former Vercel CLI preview and production deployment jobs were removed.
+
+Production deployment is handled directly by Vercel's Git integration for project
+`atlas-desktop`: repository `Rifaque/atlas`, production branch `main`, and root
+directory `website`. Its install and build commands are `npm ci` and `npm run build`;
+the default Next.js output setting is used and the public site requires no deployment
+environment variables. Any Vercel preview deployments are likewise Vercel-managed.
+
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` are no longer used by
+GitHub Actions and may be removed from GitHub Actions repository secrets. No secret
+value was read, changed, or committed.

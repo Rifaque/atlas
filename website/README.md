@@ -7,13 +7,27 @@ optional cloud privacy modes, supported platforms, and release limitations.
 ## Development
 
 ```bash
-npm install
+npm ci
 npm run dev
 npm run test
 npm run lint
 npm run typecheck
 npm run build
+npm run test:a11y
 ```
+
+## Deployment
+
+Website deployment is handled directly by Vercel's Git integration: project
+`atlas-desktop`, repository `Rifaque/atlas`, production branch `main`, and project
+root `website`. Vercel installs with `npm ci` and builds with `npm run build`; leave
+the Next.js output directory at its default. No environment variables are required
+for the current public site.
+
+GitHub Actions performs verification only. It does not deploy the site and does
+not need `VERCEL_TOKEN`, `VERCEL_ORG_ID`, or `VERCEL_PROJECT_ID`; those Actions
+secrets can be removed through GitHub repository settings. Pull requests may receive
+preview deployments from Vercel's Git integration when that Vercel setting is enabled.
 
 The production site reads public release metadata from GitHub. Do not place GitHub
 personal access tokens, OpenRouter credentials, or any other secret in this

@@ -702,3 +702,13 @@ credential was committed or fabricated. After the corrected `main` commit passes
 quality CI, the owner-approved remediation is to delete the unpublished premature
 tag locally and remotely, recreate `v1.0.0` at the corrected commit, and verify
 tag CI before publication.
+
+## Website Deployment Model Addendum (2026-09-13)
+
+The preceding Vercel-CLI GitHub Actions deployment incident is historical. The
+deployment model was simplified after release: GitHub Actions performs website
+verification only, while Vercel deploys directly from its Git integration for
+`Rifaque/atlas` project `atlas-desktop`, branch `main`, with `website` as the
+project root. Its independent install/build commands are `npm ci` and
+`npm run build`. The Actions workflow no longer reads `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, or `VERCEL_PROJECT_ID`; those Actions secrets may be removed.

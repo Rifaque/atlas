@@ -47,6 +47,22 @@ commit, tag, push, workflow run, or publication was performed during preparation
 - [ ] Verify download links, displayed version, README, website metadata, and installed notices.
 - [ ] Record failures and halt distribution; do not enable or use the disabled updater as a fallback.
 
+## Website deployment model (subsequent decision, 2026-09-13)
+
+Website deployment is handled directly by Vercel's Git integration, not by GitHub
+Actions. The Vercel project is `atlas-desktop` for `Rifaque/atlas`, with `main` as
+the production branch and `website` as the root directory. Vercel uses `npm ci` and
+`npm run build`; leave the Next.js output directory default/unset. No environment
+variables are required for the current public website.
+
+- [ ] Verify GitHub Actions website CI completes its verification-only job
+  (install, lint, typecheck, tests, build, and accessibility smoke test).
+- [ ] Verify Vercel detects the `main` push and deploys `website/` directly; Vercel
+  may create previews for pull requests according to its Git-integration settings.
+- [ ] Keep `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` out of source;
+  GitHub Actions no longer uses them, so the corresponding Actions secrets may be
+  removed from repository settings.
+
 ## Subsequent owner decision on Windows signing (2026-09-07)
 
 This decision supersedes the earlier signing-blocker checklist items for Atlas

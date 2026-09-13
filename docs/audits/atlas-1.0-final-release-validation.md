@@ -209,3 +209,11 @@ Final recommendation: **GO**. Functional blockers: **0**. Remaining SHOULD FIX:
 **2** (trusted signing if adoption warrants it; broader real-repository retrieval
 calibration). Remaining POST-1.0: **4** (SmartScreen/trusted signing, Linux
 validation, macOS support/notarization, updater infrastructure).
+
+## Website Deployment Architecture Addendum (2026-09-13)
+
+The historical GitHub Actions Vercel-CLI deployment attempt is superseded. GitHub
+Actions now verifies the standalone Next.js site only. Production deployment is
+performed directly by Vercel's Git integration for `Rifaque/atlas`: project
+`atlas-desktop`, branch `main`, root directory `website`, `npm ci`, then
+`npm run build`. No Vercel credential is required by the Actions workflow.
