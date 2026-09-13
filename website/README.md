@@ -1,6 +1,6 @@
 # Atlas website
 
-The public Atlas site is a Next.js application for the Atlas 1.0.1 Windows x64
+The public Atlas site is a Next.js application for the Atlas 1.0.2 Windows x64
 release. It describes the desktop product, its evidence-first workflow, local and
 optional cloud privacy modes, supported platforms, and release limitations.
 
@@ -36,7 +36,7 @@ repository, website documentation, client-side configuration, or browser-deliver
 environment variables. If authenticated automation is ever needed, configure its
 secret only in the deployment provider’s protected secret store.
 
-## Atlas 1.0.1 scope
+## Atlas 1.0.2 scope
 
 Atlas 1.0 targets Windows x64 with an unsigned NSIS installer. Linux is unverified,
 macOS is unsupported, and the updater remains disabled. The public download link is

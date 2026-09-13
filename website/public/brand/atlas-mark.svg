@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
   <title id="title">Atlas mark</title>
-  <path fill="#275c9b" d="M15 112 46 16h14l-26 96H15Zm39-38h20l4 12H50l4-12Zm14-58h14l31 96H94L68 28l-8 24H42l4-12 8-24h14Z"/>
+  <path fill="#3778AF" d="M15 112 43 16h18L32 112H15Zm78 0L66 16h18l29 96H93Z"/>
+  <path fill="#3778AF" d="M40 60h44l-4 13H44l-4-13Z"/>
+  <path fill="#3778AF" d="M47 81h30l-3 10H50l-3-10Z"/>
 </svg>

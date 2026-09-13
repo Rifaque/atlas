@@ -2,6 +2,15 @@
 
 All notable changes to Atlas are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Atlas uses semantic versioning.
 
+## [1.0.2] - 2026-09-13
+
+### Changed
+
+- Replaced the original generic Atlas “A” mark with the final structural Atlas brand identity.
+- Updated desktop application, Windows icon set, website, favicon, and repository branding consistently.
+
+This is a branding and polish-only release; it introduces no functional behavior changes.
+
 ## [1.0.1] - 2026-09-13
 
 ### Fixed
@@ -52,4 +61,5 @@ All notable changes to Atlas are documented here. The format follows [Keep a Cha
 
 [1.0.0]: https://github.com/Rifaque/atlas/compare/v0.9.2...v1.0.0
 [1.0.1]: https://github.com/Rifaque/atlas/compare/v1.0.0...v1.0.1
+[1.0.2]: https://github.com/Rifaque/atlas/compare/v1.0.1...v1.0.2
 [0.9.2]: https://github.com/Rifaque/atlas/releases/tag/v0.9.2

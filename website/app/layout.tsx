@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     description: "Grounded workspace questions, direct source discovery, and inspectable evidence.",
     url: siteUrl,
     siteName: "Atlas",
-    images: [{ url: "/brand/atlas-mark.svg", width: 128, height: 128, alt: "Atlas mark" }],
+    images: [{ url: "/brand/atlas-mark.svg", width: 128, height: 128, alt: "Atlas structural mark" }],
     type: "website"
   },
   twitter: {
