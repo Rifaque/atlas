@@ -1,6 +1,6 @@
-# Atlas 1.0 Third-Party Notices
+# Atlas 1.0.1 Third-Party Notices
 
-This artifact inventories third-party software incorporated into the Atlas 1.0.0 Windows x64 desktop distribution. It was generated from the locked production JavaScript dependency graph and the normal, Windows-target Rust dependency graph. Development-only dependencies and external prerequisites such as Ollama and Microsoft WebView2 Runtime are not included.
+This artifact inventories third-party software incorporated into the Atlas 1.0.1 Windows x64 desktop distribution. It was generated from the locked production JavaScript dependency graph and the normal, Windows-target Rust dependency graph. Development-only dependencies and external prerequisites such as Ollama and Microsoft WebView2 Runtime are not included.
 
 Atlas itself is licensed separately under the repository `LICENSE` file. This notice is an engineering inventory and is not legal advice.
 

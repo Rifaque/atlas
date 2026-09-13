@@ -2,6 +2,17 @@
 
 All notable changes to Atlas are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Atlas uses semantic versioning.
 
+## [1.0.1] - 2026-09-13
+
+### Fixed
+
+- Preserved bounded, direct workspace evidence for short source-discovery queries that the conservative relevance classifier previously erased.
+- Kept Ask conservative while allowing the same bounded direct-evidence fallback used by Find.
+
+### Added
+
+- Final Atlas structural A mark and generated desktop icon family.
+
 ## [1.0.0] - Unreleased
 
 ### Added
@@ -40,4 +51,5 @@ All notable changes to Atlas are documented here. The format follows [Keep a Cha
 - Last published pre-1.0 feature-freeze release.
 
 [1.0.0]: https://github.com/Rifaque/atlas/compare/v0.9.2...v1.0.0
+[1.0.1]: https://github.com/Rifaque/atlas/compare/v1.0.0...v1.0.1
 [0.9.2]: https://github.com/Rifaque/atlas/releases/tag/v0.9.2

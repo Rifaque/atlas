@@ -179,7 +179,7 @@ export function LandingScreen({ onIndexed }: LandingScreenProps) {
         <main className="launcher" aria-label="Atlas workspace launcher">
             {showSettings && <SettingsModal settings={settings} embeddingModel={selectedModel} indexHealth={null} credentialExists={credentialExists} onSave={saveSettings} onRemoveCredential={async () => { await removeOpenRouterCredential(); setCredentialExists(false); }} onReindex={() => undefined} onClose={() => setShowSettings(false)} />}
             <header className="launcher-header">
-                <div className="atlas-wordmark"><span aria-hidden="true">A</span><div><strong>Atlas</strong><small>Workspace intelligence</small></div></div>
+                <div className="atlas-wordmark"><img src="/atlas-mark.svg" alt="" /><div><strong>Atlas</strong><small>Workspace intelligence</small></div></div>
                 <IconButton label="Settings" onClick={() => setShowSettings(true)}><SettingsIcon size={17} /></IconButton>
             </header>
             <section className="launcher-content" aria-labelledby="workspaces-title">

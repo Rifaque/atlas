@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(import.meta.dirname, '..');
 const outputPath = path.join(root, 'THIRD_PARTY_NOTICES.md');
 const checkOnly = process.argv.includes('--check');
+const releaseVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 
 const normalize = (value) => value.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '').trim();
 const escapeCell = (value) => String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
@@ -82,7 +83,7 @@ function rustPackages() {
     const match = /^(\S+) v(\S+)/.exec(display);
     if (!match) throw new Error(`Could not parse cargo tree package: ${display}`);
     const [, name, version] = match;
-    if (name === 'app' && version === '1.0.0') continue;
+    if (name === 'app' && version === releaseVersion) continue;
     const pkg = metadata.packages.find((candidate) => candidate.name === name && candidate.version === version);
     if (!pkg) throw new Error(`Cargo metadata missing active package: ${name}@${version}`);
     packages.push({
@@ -131,9 +132,9 @@ function render() {
   withoutLocalText.sort(compareText);
   for (const item of texts.values()) item.components.sort(compareText);
   const lines = [
-    '# Atlas 1.0 Third-Party Notices',
+    `# Atlas ${releaseVersion} Third-Party Notices`,
     '',
-    'This artifact inventories third-party software incorporated into the Atlas 1.0.0 Windows x64 desktop distribution. It was generated from the locked production JavaScript dependency graph and the normal, Windows-target Rust dependency graph. Development-only dependencies and external prerequisites such as Ollama and Microsoft WebView2 Runtime are not included.',
+    `This artifact inventories third-party software incorporated into the Atlas ${releaseVersion} Windows x64 desktop distribution. It was generated from the locked production JavaScript dependency graph and the normal, Windows-target Rust dependency graph. Development-only dependencies and external prerequisites such as Ollama and Microsoft WebView2 Runtime are not included.`,
     '',
     'Atlas itself is licensed separately under the repository `LICENSE` file. This notice is an engineering inventory and is not legal advice.',
     '',

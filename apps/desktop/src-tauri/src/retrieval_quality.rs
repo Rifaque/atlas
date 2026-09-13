@@ -286,6 +286,31 @@ pub fn classify_relevance(results: &[RankedCandidate]) -> RelevanceLevel {
     }
 }
 
+/// Retain a small set of direct source-discovery matches when the conservative
+/// answerability classifier rejects a short query.  This deliberately requires
+/// a normalized query token in the candidate path or an exact structural match;
+/// semantic similarity or a text-only one-word match cannot activate it.
+pub fn short_query_direct_matches(
+    query: &str,
+    results: &[RankedCandidate],
+) -> Vec<RankedCandidate> {
+    let tokens = tokenize(query);
+    if tokens.is_empty() || tokens.len() > 2 || tokens.iter().any(|token| token.len() < 3) {
+        return Vec::new();
+    }
+    results
+        .iter()
+        .filter(|candidate| {
+            candidate.exact_structural_match
+                || tokenize(&candidate.file_path)
+                    .iter()
+                    .any(|path_token| tokens.iter().any(|token| token == path_token))
+        })
+        .take(5)
+        .cloned()
+        .collect()
+}
+
 pub fn suppress_overlap(candidates: Vec<RankedCandidate>, limit: usize) -> Vec<RankedCandidate> {
     let mut selected: Vec<RankedCandidate> = Vec::new();
     let mut deferred = Vec::new();
@@ -532,6 +557,30 @@ mod tests {
             }
         };
         assert_eq!(classify_relevance(&[corroborated]), RelevanceLevel::Strong);
+    }
+
+    #[test]
+    fn short_direct_workspace_terms_have_bounded_weak_fallback() {
+        let candidates = vec![RankedCandidate {
+            id: "portfolio".into(),
+            file_path: r"\\?\C:\Projects\rifaque-portfolio\src\App.tsx".into(),
+            line_start: 1,
+            line_end: 4,
+            text: "export default App".into(),
+            kind: None,
+            name: None,
+            semantic_distance: Some(0.8),
+            lexical_score: 0.01,
+            lexical_match_count: 1,
+            exact_structural_match: false,
+            fused_score: 0.02,
+        }];
+        assert_eq!(classify_relevance(&candidates), RelevanceLevel::None);
+        assert_eq!(
+            short_query_direct_matches("portfolio", &candidates).len(),
+            1
+        );
+        assert!(short_query_direct_matches("kubernetes", &candidates).is_empty());
     }
 
     #[test]

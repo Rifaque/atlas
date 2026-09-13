@@ -820,16 +820,20 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
 fn should_decline_without_evidence(
     relevance: crate::retrieval_quality::RelevanceLevel,
     has_pinned_context: bool,
+    has_direct_fallback: bool,
 ) -> bool {
-    relevance != crate::retrieval_quality::RelevanceLevel::Strong && !has_pinned_context
+    relevance != crate::retrieval_quality::RelevanceLevel::Strong
+        && !has_pinned_context
+        && !has_direct_fallback
 }
 
 fn automatic_evidence_for_generation(
     search_results: &serde_json::Value,
     workspace_id: &str,
     relevance: crate::retrieval_quality::RelevanceLevel,
+    has_direct_fallback: bool,
 ) -> Vec<crate::retrieval::EvidenceResult> {
-    if relevance != crate::retrieval_quality::RelevanceLevel::Strong {
+    if relevance != crate::retrieval_quality::RelevanceLevel::Strong && !has_direct_fallback {
         return Vec::new();
     }
     crate::retrieval::evidence_from_store(search_results, workspace_id)
@@ -1250,44 +1254,61 @@ async fn run_chat(
     // second model call and omit automatic excerpts only in this narrow mode.
     // Interaction questions such as "how does this pinned file interact with
     // indexing?" keep normal, bounded supporting retrieval.
-    let (relevance, evidence) = if pinned_mode == PinnedContextMode::SourceAuthoritative {
-        (crate::retrieval_quality::RelevanceLevel::Strong, Vec::new())
-    } else {
-        let embedding_input = truncate_chars(
-            &retrieval_query,
-            crate::retrieval_quality::QUERY_BUDGET_CHARS,
-        );
-        let query_embeddings =
-            embeddings::generate_embeddings(&[embedding_input], embed_model, &host).await?;
-        let query_embedding = query_embeddings
-            .into_iter()
-            .next()
-            .ok_or("No embedding generated")?;
-        let search_results = state
-            .store
-            .quality_search(
-                query_embedding,
-                &retrieval_query,
-                20,
-                &canonical_workspace_id,
+    let (relevance, evidence, has_direct_fallback) =
+        if pinned_mode == PinnedContextMode::SourceAuthoritative {
+            (
+                crate::retrieval_quality::RelevanceLevel::Strong,
+                Vec::new(),
+                false,
             )
-            .await?;
-        let relevance = match search_results
-            .get("relevance")
-            .and_then(serde_json::Value::as_str)
-        {
-            Some("strong") => crate::retrieval_quality::RelevanceLevel::Strong,
-            Some("weak") => crate::retrieval_quality::RelevanceLevel::Weak,
-            _ => crate::retrieval_quality::RelevanceLevel::None,
+        } else {
+            let embedding_input = truncate_chars(
+                &retrieval_query,
+                crate::retrieval_quality::QUERY_BUDGET_CHARS,
+            );
+            let query_embeddings =
+                embeddings::generate_embeddings(&[embedding_input], embed_model, &host).await?;
+            let query_embedding = query_embeddings
+                .into_iter()
+                .next()
+                .ok_or("No embedding generated")?;
+            let search_results = state
+                .store
+                .quality_search(
+                    query_embedding,
+                    &retrieval_query,
+                    20,
+                    &canonical_workspace_id,
+                )
+                .await?;
+            let relevance = match search_results
+                .get("relevance")
+                .and_then(serde_json::Value::as_str)
+            {
+                Some("strong") => crate::retrieval_quality::RelevanceLevel::Strong,
+                Some("weak") => crate::retrieval_quality::RelevanceLevel::Weak,
+                _ => crate::retrieval_quality::RelevanceLevel::None,
+            };
+            let has_direct_fallback = search_results
+                .get("directFallback")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let evidence = automatic_evidence_for_generation(
+                &search_results,
+                &canonical_workspace_id,
+                relevance,
+                has_direct_fallback,
+            );
+            (relevance, evidence, has_direct_fallback)
         };
-        let evidence =
-            automatic_evidence_for_generation(&search_results, &canonical_workspace_id, relevance);
-        (relevance, evidence)
-    };
 
     let evidence = prioritize_automatic_evidence(evidence, implementation_question);
 
-    if should_decline_without_evidence(relevance, !pinned_context.evidence.is_empty()) {
+    if should_decline_without_evidence(
+        relevance,
+        !pinned_context.evidence.is_empty(),
+        has_direct_fallback,
+    ) {
         let _ = app.emit(
             event_id,
             serde_json::json!({ "type": "citations", "data": Vec::<crate::retrieval::EvidenceResult>::new() }),
@@ -1651,13 +1672,31 @@ mod tests {
     fn no_evidence_declines_generation_unless_manual_context_exists() {
         use crate::retrieval_quality::RelevanceLevel;
 
-        assert!(should_decline_without_evidence(RelevanceLevel::None, false));
-        assert!(should_decline_without_evidence(RelevanceLevel::Weak, false));
-        assert!(!should_decline_without_evidence(
-            RelevanceLevel::Strong,
+        assert!(should_decline_without_evidence(
+            RelevanceLevel::None,
+            false,
             false
         ));
-        assert!(!should_decline_without_evidence(RelevanceLevel::None, true));
+        assert!(should_decline_without_evidence(
+            RelevanceLevel::Weak,
+            false,
+            false
+        ));
+        assert!(!should_decline_without_evidence(
+            RelevanceLevel::Strong,
+            false,
+            false
+        ));
+        assert!(!should_decline_without_evidence(
+            RelevanceLevel::None,
+            true,
+            false
+        ));
+        assert!(!should_decline_without_evidence(
+            RelevanceLevel::Weak,
+            false,
+            true
+        ));
     }
 
     #[test]
@@ -1676,6 +1715,7 @@ mod tests {
             &raw,
             "C:/workspace",
             crate::retrieval_quality::RelevanceLevel::Weak,
+            false,
         )
         .is_empty());
 
@@ -1683,9 +1723,18 @@ mod tests {
             &raw,
             "C:/workspace",
             crate::retrieval_quality::RelevanceLevel::Strong,
+            false,
         );
         assert_eq!(strong.len(), 1);
         assert_eq!(strong[0].file_path, "C:/workspace/src/workspace.rs");
+
+        let direct_fallback = automatic_evidence_for_generation(
+            &raw,
+            "C:/workspace",
+            crate::retrieval_quality::RelevanceLevel::Weak,
+            true,
+        );
+        assert_eq!(direct_fallback.len(), 1);
     }
 
     #[test]

@@ -201,7 +201,7 @@
 /* Application shell */
 .app-view, .workspace-shell, .launcher { width: 100%; height: 100%; }
 .startup { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--canvas); }
-.startup__mark, .atlas-wordmark > span { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-left: 3px solid var(--accent); border-radius: 6px; font-weight: 700; }
+.startup__mark, .atlas-wordmark > img { width: 34px; height: 34px; padding: 5px; color: var(--accent); border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); }
 .startup strong { font-size: 15px; }
 .startup__status { display: flex; align-items: center; gap: 7px; margin-top: 2px; color: var(--text-secondary); font-size: 12px; }
 .startup__spinner { width: 10px; height: 10px; border: 1px solid var(--divider); border-top-color: var(--accent); border-radius: 50%; animation: spin 800ms linear infinite; }

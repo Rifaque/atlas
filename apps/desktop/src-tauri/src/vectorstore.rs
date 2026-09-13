@@ -560,8 +560,8 @@ impl AtlasVectorStore {
         workspace_id: &str,
     ) -> Result<serde_json::Value, String> {
         use crate::retrieval_quality::{
-            bm25_rank, classify_relevance, reciprocal_rank_fusion, suppress_overlap, EvalDocument,
-            RankedCandidate, RelevanceLevel, CANDIDATE_LIMIT,
+            bm25_rank, classify_relevance, reciprocal_rank_fusion, short_query_direct_matches,
+            suppress_overlap, EvalDocument, RankedCandidate, RelevanceLevel, CANDIDATE_LIMIT,
         };
 
         let semantic_json = self
@@ -671,15 +671,28 @@ impl AtlasVectorStore {
             n_results,
         );
         let relevance = classify_relevance(&fused);
+        let fallback = if relevance == RelevanceLevel::None {
+            short_query_direct_matches(query_text, &fused)
+        } else {
+            Vec::new()
+        };
+        let (relevance, selected, direct_fallback) = if fallback.is_empty() {
+            (relevance, fused, false)
+        } else {
+            // Find and Ask share this path.  The explicit flag lets Ask admit
+            // only this bounded, path-backed evidence without relaxing its
+            // normal treatment of every Weak retrieval result.
+            (RelevanceLevel::Weak, fallback, true)
+        };
         if relevance == RelevanceLevel::None {
             return Ok(Self::empty_search_result());
         }
 
         Ok(serde_json::json!({
-            "ids": [fused.iter().map(|item| item.id.clone()).collect::<Vec<_>>()],
-            "distances": [fused.iter().map(|item| item.semantic_distance.unwrap_or(f32::MAX)).collect::<Vec<_>>()],
-            "documents": [fused.iter().map(|item| item.text.clone()).collect::<Vec<_>>()],
-            "metadatas": [fused.iter().map(|item| serde_json::json!({
+            "ids": [selected.iter().map(|item| item.id.clone()).collect::<Vec<_>>()],
+            "distances": [selected.iter().map(|item| item.semantic_distance.unwrap_or(f32::MAX)).collect::<Vec<_>>()],
+            "documents": [selected.iter().map(|item| item.text.clone()).collect::<Vec<_>>()],
+            "metadatas": [selected.iter().map(|item| serde_json::json!({
                 "filePath": item.file_path,
                 "lineRangeStart": item.line_start,
                 "lineRangeEnd": item.line_end,
@@ -687,6 +700,7 @@ impl AtlasVectorStore {
                 "name": item.name,
             })).collect::<Vec<_>>()],
             "relevance": relevance,
+            "directFallback": direct_fallback,
         }))
     }
 
@@ -870,6 +884,69 @@ mod tests {
             .unwrap()
             .iter()
             .any(|id| id == "old"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn canonical_windows_workspace_id_scopes_semantic_and_find_retrieval() {
+        let root = std::env::temp_dir().join(format!(
+            "atlas-windows-workspace-id-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let store = AtlasVectorStore::new(Some(root.to_string_lossy().to_string()));
+        let canonical_workspace = r"\\?\C:\Users\rifaq\Documents\Projects\rifaque-portfolio";
+        let plain_workspace = r"C:\Users\rifaq\Documents\Projects\rifaque-portfolio";
+
+        store
+            .store_chunks(
+                canonical_workspace.into(),
+                vec!["package".into()],
+                vec![vec![1.0, 0.0]],
+                vec![metadata(
+                    r"\\?\C:\Users\rifaq\Documents\Projects\rifaque-portfolio\package.json",
+                    "package",
+                )],
+                vec!["{ \"name\": \"rifaque-portfolio\" }".into()],
+            )
+            .await
+            .unwrap();
+
+        // This is the same workspace filter used by the semantic candidate
+        // path.  Windows canonicalization preserves the verbatim-path prefix.
+        let semantic = store
+            .similarity_search(vec![1.0, 0.0], 10, Some(vec![canonical_workspace.into()]))
+            .await
+            .unwrap();
+        assert_eq!(semantic["ids"][0][0], "package");
+
+        // A non-canonical spelling must not become a second workspace scope.
+        let plain = store
+            .similarity_search(vec![1.0, 0.0], 10, Some(vec![plain_workspace.into()]))
+            .await
+            .unwrap();
+        assert!(plain["ids"][0].as_array().unwrap().is_empty());
+
+        // Ask and Find share quality_search.  An exact filename query has
+        // structural lexical evidence and therefore remains available after
+        // relevance classification as well as in the semantic candidate set.
+        let results = store
+            .quality_search(vec![1.0, 0.0], "package.json", 10, canonical_workspace)
+            .await
+            .unwrap();
+        assert_eq!(results["relevance"], "strong");
+        assert_eq!(results["ids"][0][0], "package");
+
+        // One direct workspace token is intentionally not enough for the
+        // general answerability classifier, but it is enough to expose this
+        // bounded, path-backed source to Find and Ask.
+        let short_query = store
+            .quality_search(vec![1.0, 0.0], "portfolio", 10, canonical_workspace)
+            .await
+            .unwrap();
+        assert_eq!(short_query["relevance"], "weak");
+        assert_eq!(short_query["directFallback"], true);
+        assert_eq!(short_query["ids"][0][0], "package");
+
         let _ = std::fs::remove_dir_all(root);
     }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { githubUrl, installerSha256, releaseUrl } from "@/lib/content";
+import Image from "next/image";
+import { githubUrl, installerFilename, installerSha256, releaseUrl, releaseVersion } from "@/lib/content";
 
 const workflow = [
   ["Open", "Choose one local codebase or document set through the native folder picker."],
@@ -13,7 +14,7 @@ export function AtlasHome() {
     <>
       <header className="site-header">
         <nav className="shell nav" aria-label="Primary navigation">
-          <Link className="wordmark" href="#top" aria-label="Atlas home"><span aria-hidden="true">A</span> Atlas</Link>
+          <Link className="wordmark" href="#top" aria-label="Atlas home"><Image src="/brand/atlas-mark.svg" alt="" width={29} height={29} priority /> Atlas</Link>
           <div className="nav-links"><Link href="#workflow">Workflow</Link><Link href="#evidence">Evidence</Link><Link href="#privacy">Privacy</Link><a href={githubUrl}>GitHub</a></div>
           <a className="nav-download" href={releaseUrl}>Download for Windows</a>
         </nav>
@@ -22,10 +23,10 @@ export function AtlasHome() {
       <main id="top">
         <section className="shell hero" aria-labelledby="hero-title">
           <div className="hero-copy">
-            <p className="kicker">Atlas 1.0 · Windows x64</p>
+            <p className="kicker">Atlas {releaseVersion} · Windows x64</p>
             <h1 id="hero-title">Understand your workspace. From your workspace.</h1>
             <p className="lede">Atlas indexes a local codebase or document set, lets you Ask or Find, and shows the evidence behind every grounded response.</p>
-            <div className="hero-actions"><a className="button button-primary" href={releaseUrl}>Download Atlas 1.0.0</a><a className="button button-secondary" href={githubUrl}>View on GitHub</a></div>
+            <div className="hero-actions"><a className="button button-primary" href={releaseUrl}>Download Atlas {releaseVersion}</a><a className="button button-secondary" href={githubUrl}>View on GitHub</a></div>
             <p className="release-note">Unsigned NSIS installer · SmartScreen may show an Unknown Publisher warning.</p>
           </div>
 
@@ -69,10 +70,10 @@ export function AtlasHome() {
 
         <section className="shell limitations" aria-labelledby="limitations-title"><p className="kicker">Current limitations</p><h2 id="limitations-title">Clear boundaries make a better tool.</h2><ul><li>Linux is configured but unverified for 1.0.</li><li>macOS is unsupported for 1.0.</li><li>PDF and generic-file chunking is basic.</li><li>Relevance calibration is heuristic.</li><li>Context budgeting is approximate rather than tokenizer-exact.</li><li>Evidence is not guaranteed claim-level attribution.</li></ul></section>
 
-        <section className="shell final-cta" aria-labelledby="download-title"><p className="kicker">Atlas 1.0</p><h2 id="download-title">A local workspace, a grounded answer, and the source beside it.</h2><p>Download from GitHub Releases, verify the checksum, then open a workspace and begin with evidence.</p><div className="hero-actions"><a className="button button-primary" href={releaseUrl}>Download Atlas 1.0.0</a><a className="button button-secondary" href={githubUrl}>GitHub</a></div><p className="checksum"><span>SHA-256</span> {installerSha256}</p></section>
+        <section className="shell final-cta" aria-labelledby="download-title"><p className="kicker">Atlas {releaseVersion}</p><h2 id="download-title">A local workspace, a grounded answer, and the source beside it.</h2><p>Download <code>{installerFilename}</code> from GitHub Releases, verify the checksum, then open a workspace and begin with evidence.</p><div className="hero-actions"><a className="button button-primary" href={releaseUrl}>Download Atlas {releaseVersion}</a><a className="button button-secondary" href={githubUrl}>GitHub</a></div><p className="checksum"><span>SHA-256</span> {installerSha256}</p></section>
       </main>
 
-      <footer className="site-footer"><div className="shell"><span>Atlas 1.0 · local-first workspace intelligence</span><a href={githubUrl}>github.com/Rifaque/atlas</a></div></footer>
+      <footer className="site-footer"><div className="shell"><span>Atlas {releaseVersion} · local-first workspace intelligence</span><a href={githubUrl}>github.com/Rifaque/atlas</a></div></footer>
     </>
   );
 }

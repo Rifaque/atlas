@@ -14,7 +14,7 @@ initTheme();
 function StartupSplash() {
   return (
     <div className="startup" role="main" aria-label="Atlas is starting">
-      <div className="startup__mark" aria-hidden="true">A</div>
+      <img className="startup__mark" src="/atlas-mark.svg" alt="" />
       <div>
         <strong>Atlas</strong>
         <div className="startup__status" aria-live="polite">
