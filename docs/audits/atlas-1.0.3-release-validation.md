@@ -146,5 +146,21 @@ The installed application was driven through its WebView with the existing
   only, unsigned; no MSI)
 - SHA-256: `16D953C943BF55F18D5A73F9C8C842B94203652CD2857E61F3883E51D50E7D23`
 - Checksum manifest: `release-candidates/Atlas_1.0.3_SHA256SUMS.txt`
-- GitHub Release: pending publication.
-- Website: pending deployment from `main`.
+- Release commit: `71cb4dd` (`release: Atlas 1.0.3`). Branch CI failed on it:
+  two new vectorstore tests converted Windows fixture paths through
+  `evidence_from_store`, whose `Path::strip_prefix` cannot strip a Windows root
+  on Linux. The test-only follow-up `63c5f04` asserts on the `quality_search`
+  envelope instead; branch CI passed on it.
+- Tag: annotated `v1.0.3` targets `63c5f04`; tag CI passed. Earlier tags were
+  not modified.
+- Build provenance: rebuilding from `63c5f04` produced an `app.exe` that differs
+  from the candidate's only in 24 non-code bytes (PE link timestamp and debug
+  directory timestamps/PDB GUID); all code and data sections are identical.
+- GitHub Release: published as Atlas 1.0.3 (latest) at
+  `https://github.com/Rifaque/atlas/releases/tag/v1.0.3`. GitHub's recorded
+  installer digest and an independent public download both matched the checksum
+  above, and the public checksum manifest is identical to the local one.
+- Website: Vercel production deployment from `main` is live at
+  `https://atlas.hubzero.in/`. It serves Atlas 1.0.3, CTAs to the v1.0.3
+  release, the `Atlas_1.0.3_x64-setup.exe` filename, the matching checksum, the
+  unchanged structural mark, and the unsigned Windows disclosure.
