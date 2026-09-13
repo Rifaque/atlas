@@ -40,7 +40,7 @@ export function AskView({
     const endRef = useRef<HTMLDivElement>(null);
     useEffect(() => { endRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' }); }, [session.messages]);
     const destination = settings.generationProvider === 'ollama' ? 'Local · Ollama' : 'Cloud · OpenRouter';
-    const examples = ['Where is authentication handled?', 'Explain the indexing pipeline.', 'Summarize this module.'];
+    const examples = ['Where is workspace authorization enforced?', 'Explain the indexing pipeline.', 'Summarize this module.'];
 
     return (
         <section className="ask-view" aria-label="Ask workspace">

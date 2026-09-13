@@ -5,15 +5,15 @@ import { AtlasHome } from "@/app/page";
 
 describe("Atlas 1.0 public homepage", () => {
   afterEach(cleanup);
-  it("presents a Windows download CTA with accurate 1.0.2 disclosure", () => {
+  it("presents a Windows download CTA with accurate 1.0.3 disclosure", () => {
     render(<AtlasHome />);
-    expect(screen.getAllByRole("link", { name: /Download Atlas 1.0.2/i })[0]).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: /Download Atlas 1.0.3/i })[0]).toHaveAttribute(
       "href",
-      "https://github.com/Rifaque/atlas/releases/tag/v1.0.2"
+      "https://github.com/Rifaque/atlas/releases/tag/v1.0.3"
     );
     expect(screen.getByText(/Unsigned NSIS installer/i)).toBeInTheDocument();
     expect(screen.getByText(/Linux is configured but unverified/i)).toBeInTheDocument();
-    expect(screen.getByText(/9F3E67551230A1840EBA7F8E69131169A25D942F9DD7EDAB574BE32E1F354975/i)).toBeInTheDocument();
+    expect(screen.getByText(/16D953C943BF55F18D5A73F9C8C842B94203652CD2857E61F3883E51D50E7D23/i)).toBeInTheDocument();
   });
 
   it("states the evidence and local/cloud boundaries without retired product claims", () => {

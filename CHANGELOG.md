@@ -2,6 +2,17 @@
 
 All notable changes to Atlas are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Atlas uses semantic versioning.
 
+## [1.0.3] - 2026-09-14
+
+### Fixed
+
+- Prevented workspace-root path segments from being treated as direct evidence.
+- BM25 now evaluates workspace-relative paths instead of absolute paths.
+- Tightened symbol matching so substrings cannot masquerade as exact structural matches.
+- Find can now return bounded literal workspace matches even when Ask-style relevance is None.
+- Ask remains conservative and continues to decline unsupported questions.
+- Replaced misleading authentication examples with the actual workspace-authorization terminology.
+
 ## [1.0.2] - 2026-09-13
 
 ### Changed

@@ -194,7 +194,7 @@ Show:
 
 - workspace name and factual readiness (“Index ready” or the blocking index/provider state);
 - one sentence: “Ask a question about this workspace, or switch to Find for direct source matches.”;
-- at most three stable functional examples such as “Where is authentication configured?”, “Explain the indexing flow,” and “Find the document that defines release steps.” These are templates, not workspace-derived claims;
+- at most three stable functional examples such as “Where is workspace authorization enforced?”, “Explain the indexing flow,” and “Find the document that defines release steps.” These are templates, not workspace-derived claims;
 - up to three recent workspace sessions when history exists.
 
 Do not show a giant slogan, AI artwork, fabricated summary, trending prompts, analytics, or provider picker.

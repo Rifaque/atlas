@@ -6,7 +6,7 @@ Atlas is a local-first workspace intelligence desktop app that indexes one codeb
 
 **Open → Index → Ask / Find → Inspect Evidence → Follow Up**
 
-## Atlas 1.0.2
+## Atlas 1.0.3
 
 Atlas 1.0 officially ships for **Windows x64**.
 
@@ -37,9 +37,9 @@ Overlay Chat, or multi-model routing.
 
 ## Install on Windows
 
-1. Download `Atlas_1.0.2_x64-setup.exe` from the
-   [Atlas 1.0.2 release](https://github.com/Rifaque/atlas/releases/tag/v1.0.2).
-2. Verify SHA-256: `9F3E67551230A1840EBA7F8E69131169A25D942F9DD7EDAB574BE32E1F354975`.
+1. Download `Atlas_1.0.3_x64-setup.exe` from the
+   [Atlas 1.0.3 release](https://github.com/Rifaque/atlas/releases/tag/v1.0.3).
+2. Verify SHA-256: `16D953C943BF55F18D5A73F9C8C842B94203652CD2857E61F3883E51D50E7D23`.
 3. Run the installer. SmartScreen may show an Unknown Publisher warning because
    this installer is unsigned.
 4. Launch Atlas and ensure Ollama is running.
@@ -109,7 +109,7 @@ Requirements: Node.js `^20.19.0 || >=22.12.0`, pnpm 10.4.1, Rust 1.77.2+,
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm version:check -- --expected 1.0.2
+pnpm version:check -- --expected 1.0.3
 pnpm --filter desktop test
 pnpm --filter desktop lint
 pnpm --filter desktop build

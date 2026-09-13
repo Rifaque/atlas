@@ -1279,6 +1279,7 @@ async fn run_chat(
                     &retrieval_query,
                     20,
                     &canonical_workspace_id,
+                    crate::retrieval_quality::SearchMode::Ask,
                 )
                 .await?;
             let relevance = match search_results
@@ -1539,7 +1540,13 @@ pub async fn search_files(
 
     let results = state
         .store
-        .quality_search(query_embedding, &query, 10, &workspace_id)
+        .quality_search(
+            query_embedding,
+            &query,
+            10,
+            &workspace_id,
+            crate::retrieval_quality::SearchMode::Find,
+        )
         .await?;
 
     Ok(crate::retrieval::evidence_from_store(
