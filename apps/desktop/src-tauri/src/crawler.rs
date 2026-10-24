@@ -241,6 +241,9 @@ pub async fn build_file_tree(dir: &str) -> Result<Vec<FileNode>, String> {
     build_tree_recursive(&root, &root, &gitignore).await
 }
 
+// async_recursion 1.1 adds a bare #[must_use] to the generated function, whose
+// boxed Future return type is already must_use, which trips clippy::double_must_use.
+#[allow(clippy::double_must_use)]
 #[async_recursion::async_recursion]
 async fn build_tree_recursive(
     current: &Path,
