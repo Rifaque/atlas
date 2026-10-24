@@ -1,4 +1,4 @@
-export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://atlas.rifaque.dev";
+export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://atlas.rsxdevelops.dev";
 
 export const githubUrl = "https://github.com/Rifaque/atlas";
 export const releaseVersion = "1.0.3";
